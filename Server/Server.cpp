@@ -1,7 +1,68 @@
-# include <stdio.h>
+#include <windows.networking.sockets.h>
+#include <iostream>
+#include "Packet.h"
 
+#pragma comment(lib, "Ws2_32.lib")
+
+using namespace std;
 int main()
 {
-	printf("hello world");
-	return 0;
+	//starts Winsock DLLs		
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+		return 0;
+
+	//create server socket
+	SOCKET ServerSocket;
+	ServerSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (ServerSocket == INVALID_SOCKET) {
+		WSACleanup();
+		return 0;
+	}
+
+	//binds socket to address
+	sockaddr_in SvrAddr;
+	SvrAddr.sin_family = AF_INET;
+	SvrAddr.sin_addr.s_addr = INADDR_ANY;
+	SvrAddr.sin_port = htons(27000);
+	if (bind(ServerSocket, (struct sockaddr*)&SvrAddr, sizeof(SvrAddr)) == SOCKET_ERROR)
+	{
+		closesocket(ServerSocket);
+		WSACleanup();
+		return 0;
+	}
+
+	//listen on a socket
+	if (listen(ServerSocket, 1) == SOCKET_ERROR) {
+		closesocket(ServerSocket);
+		WSACleanup();
+		return 0;
+	}
+
+
+	cout << "Waiting for client connection\n" << endl;
+
+	//accepts a connection from a client
+	SOCKET ConnectionSocket;
+	ConnectionSocket = SOCKET_ERROR;
+	if ((ConnectionSocket = accept(ServerSocket, NULL, NULL)) == SOCKET_ERROR) {
+		closesocket(ServerSocket);
+		WSACleanup();
+		return 0;
+	}
+
+	cout << "Connection Established" << endl;
+
+	//char RxBuffer[128] = {};
+
+	while (1)
+	{
+		// Main Logic Loop
+	}
+
+	closesocket(ConnectionSocket);	//closes incoming socket
+	closesocket(ServerSocket);	    //closes server socket	
+	WSACleanup();					//frees Winsock resources
+
+	return 1;
 }
