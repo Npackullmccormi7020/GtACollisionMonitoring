@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include "../Server/Packet.h"
+#include "State.h"
 
 int main()
 {
@@ -32,8 +33,27 @@ int main()
 		return 0;
 	}
 
+	ClientState clientState = ClientState::Flying;
+
 	while (1) {
 		// Main logic loop
+		switch (clientState)
+		{
+		case ClientState::Flying:
+			// send
+			// recieve
+			// act
+			break;
+
+		case ClientState::DivertCourse:
+			// send
+			// recieve
+			// act
+			break;
+		default:
+			break;
+		}
+			
 	}
 
 	//closes connection and socket

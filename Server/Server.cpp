@@ -1,6 +1,7 @@
 #include <windows.networking.sockets.h>
 #include <iostream>
 #include "Packet.h"
+#include "State.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -53,11 +54,29 @@ int main()
 
 	cout << "Connection Established" << endl;
 
+	ServerState serverState = ServerState::Listening;
+
 	//char RxBuffer[128] = {};
 
 	while (1)
 	{
 		// Main Logic Loop
+		switch (serverState)
+		{
+		case ServerState::Listening:
+			// recieve
+			// act
+			// send
+			break;
+
+		case ServerState::Alert:
+			// recieve
+			// act
+			// send
+			break;
+		default:
+			break;
+		}
 	}
 
 	closesocket(ConnectionSocket);	//closes incoming socket

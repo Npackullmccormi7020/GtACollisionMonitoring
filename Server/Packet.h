@@ -36,8 +36,4 @@ public:
 
 	};
 
-	unsigned int CalculateCRC()
-	{
-
-	}
 };
