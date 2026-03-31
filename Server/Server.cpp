@@ -1,11 +1,8 @@
-#include <windows.networking.sockets.h>
-#include <iostream>
-#include "Packet.h"
-#include "State.h"
+﻿#include "ServerHelpers.h"
+#include <thread>
+#include <vector>
 
-#pragma comment(lib, "Ws2_32.lib")
 
-using namespace std;
 int main()
 {
 	//starts Winsock DLLs		
@@ -33,55 +30,81 @@ int main()
 		return 0;
 	}
 
-	//listen on a socket
-	if (listen(ServerSocket, 1) == SOCKET_ERROR) {
+	// listen() uses SOMAXCONN so the OS queues multiple incoming connections while the accept loop is busy.
+	if (listen(ServerSocket, SOMAXCONN) == SOCKET_ERROR) {
 		closesocket(ServerSocket);
 		WSACleanup();
 		return 0;
 	}
 
-
-	cout << "Waiting for client connection\n" << endl;
-
-	//accepts a connection from a client
-	SOCKET ConnectionSocket;
-	ConnectionSocket = SOCKET_ERROR;
-	if ((ConnectionSocket = accept(ServerSocket, NULL, NULL)) == SOCKET_ERROR) {
-		closesocket(ServerSocket);
-		WSACleanup();
-		return 0;
-	}
-
-	cout << "Connection Established" << endl;
-
-	ServerState serverState = ServerState::Listening;
-
-	//char RxBuffer[128] = {};
-
-	while (1)
+	// Passkey gate — prompt the user for the start passkey before the server begins accepting connections. Loops until correct key is entered.
 	{
-		// Main Logic Loop
-		switch (serverState)
+		string userInput;
+		cout << "[Server] Enter passkey to start Ground Control: ";
+		while (true)
 		{
-		case ServerState::Listening:
-			// recieve
-			// act
-			// send
-			break;
-
-		case ServerState::Alert:
-			// recieve
-			// act
-			// send
-			break;
-		default:
-			break;
+			cin >> userInput;
+			if (userInput == START_PASSKEY)
+			{
+				cout << "[Server] Passkey accepted. Ground Control is now ACTIVE." << endl;
+				cout << "[Server] Type \"x\" at any time to stop the server.\n" << endl;
+				break;
+			}
+			else
+			{
+				cout << "[Server] Incorrect passkey. Try again: ";
+			}
 		}
 	}
+
+	// Set the running flag to true now that the passkey has been accepted
+	serverRunning = true;
+
+	// Track all spawned threads so we can join them on shutdown, and assign each client a simple numeric ID for logging.
+	vector<thread> clientThreads;
+	int clientID = 0;
+
+	// Spawn the input monitor on its own thread so it can listen for "x" concurrently without blocking the accept loop below.
+	thread inputThread(inputMonitor, ServerSocket);
+
+	// The single accept() call is now an accept loop so the server keeps accepting new clients instead of handling just one.
+	SOCKET ConnectionSocket;
+	ConnectionSocket = SOCKET_ERROR;
+
+	// The loop continues running based on the serverRunning variable
+	while (serverRunning)
+	{
+		cout << "Waiting to accept a client connection..." << endl << endl;
+
+		if ((ConnectionSocket = accept(ServerSocket, NULL, NULL)) == SOCKET_ERROR) {
+			// Only treat this as a hard error if the server is still supposed to be running.
+			// If serverRunning is false, the socket was closed intentionally by inputMonitor() to unblock accept() — not an error.
+			if (!serverRunning) break;
+			closesocket(ServerSocket);
+			WSACleanup();
+			return 0;
+		}
+
+		// Increment client counter and spawn a dedicated thread for this client.
+		// The thread runs handleClient() independently so main() loops back immediately to accept the next incoming connection.
+		clientID++;
+		clientThreads.emplace_back(thread(handleClient, ConnectionSocket, clientID));
+		{
+			// Log total number of threads spawned so far
+			lock_guard<mutex> lock(consoleMutex);
+			cout << "[Server] New Client Accepted. Total clients accepted: " << clientID << endl << endl;
+		}
+	}
+
+	// [ADDED] Wait for the input monitor thread to finish before cleaning up
+	if (inputThread.joinable()) inputThread.join();
+
+	// Join all client threads before shutting down (ensures a clean exit).
+	for (auto& t : clientThreads)
+		if (t.joinable()) t.join();
 
 	closesocket(ConnectionSocket);	//closes incoming socket
 	closesocket(ServerSocket);	    //closes server socket	
 	WSACleanup();					//frees Winsock resources
-
 	return 1;
 }
