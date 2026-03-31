@@ -128,11 +128,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\Server\Logging.cpp" />
     <ClCompile Include="Client.cpp" />
     <ClCompile Include="ClientHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Server\Constants.h" />
+    <ClInclude Include="..\Server\Logging.h" />
     <ClInclude Include="..\Server\Packet.h" />
     <ClInclude Include="ClientHelpers.h" />
     <ClInclude Include="State.h" />

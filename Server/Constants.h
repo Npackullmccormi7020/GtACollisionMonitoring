@@ -1,7 +1,6 @@
 #pragma once
 #include <atomic>
 #include <iostream>
-#include <mutex>
 #include <string>
 
 // Packet Flag Definitions

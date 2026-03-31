@@ -3,6 +3,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 #include "../Server/Packet.h"
 #include "../Server/Constants.h"
+#include "../Server/Logging.h"
 #include "State.h"
 
 using namespace std;

@@ -1,0 +1,26 @@
+Tue Mar 31 10:19:20 2026 - [Client] Connected to Ground Control.
+
+Tue Mar 31 10:19:30 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:19:40 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:19:50 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:20:00 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:20:10 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:29:35 2026 - [Client] Connected to Ground Control.
+
+Tue Mar 31 10:29:45 2026 - SENT: 
+Tue Mar 31 10:29:45 2026 - RECEIVED: D
+Tue Mar 31 10:29:45 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:29:55 2026 - SENT: 
+Tue Mar 31 10:29:55 2026 - RECEIVED: D
+Tue Mar 31 10:29:55 2026 - [Client] ACK received from server.
+
+Tue Mar 31 10:30:05 2026 - SENT: 
+Tue Mar 31 10:30:05 2026 - RECEIVED: D
+Tue Mar 31 10:30:05 2026 - [Client] ACK received from server.
+

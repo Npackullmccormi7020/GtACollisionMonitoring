@@ -1,10 +1,13 @@
-#include "ClientHelpers.cpp"
+#include "ClientHelpers.h"
 #include <thread>
 
 using namespace std;
 
 int main()
 {
+    // Initialize Logger
+    Logger logger;
+
     //starts Winsock DLLs
     WSADATA wsaData;
     if ((WSAStartup(MAKEWORD(2, 2), &wsaData)) != 0) {
@@ -31,7 +34,7 @@ int main()
     }
 
     // Log successful connection to the server
-    cout << "[Client] Connected to Ground Control." << endl;
+    logger.Log("[Client] Connected to Ground Control.\n");
 
     ClientState clientState = ClientState::Flying;
 
@@ -57,9 +60,13 @@ int main()
             char flightData = static_cast<char>(FLIGHT_ACTIVE);
             txPacket = Packet();
             txPacket.SetData(&flightData, 1);
+
+            // Log data being sent
+            logger.LogSend(string(1, flightData));
+
             if (!sendPacket(ClientSocket, txPacket))
             {
-                cout << "[Client] Send failed. Disconnecting." << endl << endl;
+                logger.Log("[Client] Send failed. Disconnecting.\n\n");
                 flightActive = false;   // Exit loop on send failure
                 break;
             }
@@ -84,20 +91,23 @@ int main()
             // Receive a response packet from the server
             if (!recvPacket(ClientSocket, rxPacket))
             {
-                cout << "[Client] Receive failed. Disconnecting." << endl << endl;
+                logger.Log("[Client] Receive failed. Disconnecting.\n\n");
                 flightActive = false;   // Exit loop on recv failure
                 break;
             }
 
+            // Log data received
+            logger.LogReceive(string(1, rxPacket.getInstruction()));
+
             // Inspect the server's response and react
             if (rxPacket.getInstruction() == COLLISION_ALERT)
             {
-                cout << "[Client] COLLISION_ALERT received from server. Changing State to DivertCourse." << endl;
+                logger.Log("[Client] COLLISION_ALERT received from server. Changing State to DivertCourse.\n");
                 // TODO: transition clientState here based on logic
                 clientState = ClientState::DivertCourse;
             }
             else if (rxPacket.getInstruction() == ACK)
-                cout << "[Client] ACK received from server." << endl;
+                logger.Log("[Client] ACK received from server.\n");
             break;
         }
         case ClientState::DivertCourse:
@@ -112,23 +122,23 @@ int main()
             txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
             if (!sendPacket(ClientSocket, txPacket))
             {
-                cout << "[Client] Failed to send FLIGHT_DONE packet." << endl << endl;
+                logger.Log("[Client] Failed to send FLIGHT_DONE packet.\n\n");
                 flightActive = false;   // Exit even if send failed
                 break;
             }
-            cout << "[Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK..." << endl;
+            logger.Log("[Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...\n");
             
             // Wait for the server's ACK confirming FLIGHT_DONE was received.
             if (!recvPacket(ClientSocket, rxPacket))
             {
-                cout << "[Client] No ACK received. Closing anyway" << endl << endl;
+                logger.Log("[Client] No ACK received. Closing anyway\n\n");
                 flightActive = false;   //Exit regardless — server may have already closed
                 break;
             }
 
             // Confirm the ACK
             if (rxPacket.getInstruction() == ACK)
-                cout << "[Client] FLIGHT_ALERT_RESPONSE 'ACK' received" << endl;
+                logger.Log("[Client] FLIGHT_ALERT_RESPONSE 'ACK' received\n");
                 // To-Do - Logic for when we go back to flying state
             break;
         }
