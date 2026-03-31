@@ -4,11 +4,11 @@
 #include "Packet.h"
 #include "State.h"
 #include "Constants.h"
+#include "Logging.h"
 
 using namespace std;
 
 // Defined in ServerHelpers.cpp — extern here so all files that include this header can access them
-extern mutex consoleMutex;
 extern atomic<bool> serverRunning;
 extern const string START_PASSKEY;
 

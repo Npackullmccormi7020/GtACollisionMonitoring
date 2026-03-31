@@ -5,6 +5,9 @@
 
 int main()
 {
+	// Initialize Logger
+	Logger logger;
+
 	//starts Winsock DLLs		
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -40,19 +43,19 @@ int main()
 	// Passkey gate — prompt the user for the start passkey before the server begins accepting connections. Loops until correct key is entered.
 	{
 		string userInput;
-		cout << "[Server] Enter passkey to start Ground Control: ";
+		logger.Log("[Server] Enter passkey to start Ground Control: ");
 		while (true)
 		{
 			cin >> userInput;
 			if (userInput == START_PASSKEY)
 			{
-				cout << "[Server] Passkey accepted. Ground Control is now ACTIVE." << endl;
-				cout << "[Server] Type \"x\" at any time to stop the server.\n" << endl;
+				logger.Log("[Server] Passkey accepted. Ground Control is now ACTIVE.");
+				logger.Log("[Server] Type \"x\" at any time to stop the server.\n");
 				break;
 			}
 			else
 			{
-				cout << "[Server] Incorrect passkey. Try again: ";
+				logger.Log("[Server] Incorrect passkey. Try again: ");
 			}
 		}
 	}
@@ -74,7 +77,7 @@ int main()
 	// The loop continues running based on the serverRunning variable
 	while (serverRunning)
 	{
-		cout << "Waiting to accept a client connection..." << endl << endl;
+		logger.Log("Waiting to accept a client connection... \n\n");
 
 		if ((ConnectionSocket = accept(ServerSocket, NULL, NULL)) == SOCKET_ERROR) {
 			// Only treat this as a hard error if the server is still supposed to be running.
@@ -89,11 +92,10 @@ int main()
 		// The thread runs handleClient() independently so main() loops back immediately to accept the next incoming connection.
 		clientID++;
 		clientThreads.emplace_back(thread(handleClient, ConnectionSocket, clientID));
-		{
-			// Log total number of threads spawned so far
-			lock_guard<mutex> lock(consoleMutex);
-			cout << "[Server] New Client Accepted. Total clients accepted: " << clientID << endl << endl;
-		}
+
+		// Log total number of threads spawned so far
+		string message = "[Server] New Client Accepted. Total clients accepted: " + clientID;
+		logger.Log(message + "\n" + "\n");
 	}
 
 	// [ADDED] Wait for the input monitor thread to finish before cleaning up

@@ -1,9 +1,9 @@
 #include "ServerHelpers.h"
 
 // Variable definitions — owned here, declared extern in ServerHelpers.h
-mutex consoleMutex;
 const string START_PASSKEY = "Grp8_StartGroundControl";
 atomic<bool> serverRunning(false);
+Logger logger;
 
 // Input monitor thread function — runs concurrently with the accept loop.
 // Waits for the user to type "x" then sets serverRunning to false, which causes the accept loop to exit on its next iteration.
@@ -16,10 +16,7 @@ void inputMonitor(SOCKET ServerSocket)
         cin >> input;
         if (input == "x")
         {
-            {
-                lock_guard<mutex> lock(consoleMutex);
-                cout << "\n[Server] Shutdown command received. Stopping server..." << endl;
-            }
+            logger.Log("\n[Server] Shutdown command received. Stopping server...\n");
             serverRunning = false;      // Signal the accept loop to stop
             closesocket(ServerSocket);  // Unblocks accept() so the loop can check the flag
             break;
@@ -109,11 +106,9 @@ bool sendPacket(SOCKET sock, Packet& packet)
 // Essentially acting as the main loop that's isolated per client.
 void handleClient(SOCKET ConnectionSocket, int clientID)
 {
-    {
-        // Lock console before printing so output from different threads doesn't interleave
-        lock_guard<mutex> lock(consoleMutex);
-        cout << "[Client " << clientID << "] Connection Established" << endl;
-    }
+    string message = "[Client" + clientID;
+    message = message + "] Connection Established\n";
+    logger.Log(message);
 
     ServerState serverState = ServerState::Listening;
 
@@ -136,38 +131,43 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
             if (!recvPacket(ConnectionSocket, rxPacket))
             {
-                lock_guard<mutex> lock(consoleMutex);
-                cout << "[Client " << clientID << "] Connection lost during receive." << endl << endl;
+                string message = "[Client" + clientID;
+                message = message + "] Connection lost during receive.\n\n";
+                logger.Log(message);
                 flightActive = false;   // Exit loop on dropped connection
                 break;
             }
 
+            // Log data received from client
+            logger.LogReceive(string(1, rxPacket.getInstruction()));
+
             // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
             {
-                {
-                    lock_guard<mutex> lock(consoleMutex);
-                    cout << "[Client " << clientID << "] FLIGHT_DONE received." << endl;
-                }
+                string message = "[Client" + clientID;
+                message = message + "] FLIGHT_DONE received.\n";
+                logger.Log(message);
 
                 // Build and send a one-byte ACK packet back to the client before closing the loop
-                {
-                    lock_guard<mutex> lock(consoleMutex);
-                    cout << "[Client " << clientID << "] Sending ACK." << endl;
-                }
+                message = "[Client" + clientID;
+                message = message + "] Sending ACK.\n";
+                logger.Log(message);
+
                 char ackData = static_cast<char>(ACK);
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
 
+                // Log data being sent to client
+                logger.LogSend(string(1, txPacket.getInstruction()));
+
                 flightActive = false;   // Exit the loop after ACK is sent
             }
             else if (rxPacket.getInstruction() == FLIGHT_ACTIVE) // Check the Instruction byte for a FLIGHT_ACTIVE packet
             {
-                {
-                    lock_guard<mutex> lock(consoleMutex);
-                    cout << "[Client " << clientID << "] FLIGHT_ACTIVE received." << endl;
-                }
+                string message = "[Client" + clientID;
+                message = message + "] FLIGHT_ACTIVE received.\n";
+                logger.Log(message);
 
                 // act
                 // To-Do - Create Logic for determining if a collision is imminent
@@ -179,19 +179,26 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
+
+                // Log data being sent to client
+                Logger::LogSend(string(1, txPacket.getInstruction()));
+
                 serverState = ServerState::Alert;*/
 
                 // else
 
                 // Build and send a one-byte ACK packet back to the client if no collision detected
-                {
-                    lock_guard<mutex> lock(consoleMutex);
-                    cout << "[Client " << clientID << "] Sending ACK." << endl;
-                }
+                message = "[Client" + clientID;
+                message = message + "] Sending ACK.\n";
+                logger.Log(message);
+
                 char ackData = static_cast<char>(ACK);
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
+
+                // Log data being sent to client
+                logger.LogSend(string(1, txPacket.getInstruction()));
             }
             // send
             break;
@@ -208,8 +215,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
 
     // Clean up this client's socket when its loop exits
     closesocket(ConnectionSocket);
-    {
-        lock_guard<mutex> lock(consoleMutex);
-        cout << "[Client " << clientID << "] Disconnected" << endl << endl;
-    }
+    message = "[Client" + clientID;
+    message = message + "] Disconnected\n\n";
+    logger.Log(message);
 }
