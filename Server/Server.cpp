@@ -1,6 +1,5 @@
 ﻿#include "ServerHelpers.h"
 #include <thread>
-#include <vector>
 
 
 int main()
@@ -94,7 +93,7 @@ int main()
 		clientThreads.emplace_back(thread(handleClient, ConnectionSocket, clientID));
 
 		// Log total number of threads spawned so far
-		string message = "[Server] New Client Accepted. Total clients accepted: " + clientID;
+		string message = "[Server] New Client Accepted. Total clients accepted: " + to_string(clientID);
 		logger.Log(message + "\n" + "\n");
 	}
 

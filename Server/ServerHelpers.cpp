@@ -106,8 +106,7 @@ bool sendPacket(SOCKET sock, Packet& packet)
 // Essentially acting as the main loop that's isolated per client.
 void handleClient(SOCKET ConnectionSocket, int clientID)
 {
-    string message = "[Client" + clientID;
-    message = message + "] Connection Established\n";
+    string message = "[Client" + to_string(clientID) + "] Connection Established\n";
     logger.Log(message);
 
     ServerState serverState = ServerState::Listening;
@@ -131,8 +130,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
             if (!recvPacket(ConnectionSocket, rxPacket))
             {
-                string message = "[Client" + clientID;
-                message = message + "] Connection lost during receive.\n\n";
+                string message = "[Client" + to_string(clientID) + "] Connection lost during receive.\n\n";
                 logger.Log(message);
                 flightActive = false;   // Exit loop on dropped connection
                 break;
@@ -144,13 +142,11 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
             {
-                string message = "[Client" + clientID;
-                message = message + "] FLIGHT_DONE received.\n";
+                string message = "[Client" + to_string(clientID) + "] FLIGHT_DONE received.\n";
                 logger.Log(message);
 
                 // Build and send a one-byte ACK packet back to the client before closing the loop
-                message = "[Client" + clientID;
-                message = message + "] Sending ACK.\n";
+                message = "[Client" + to_string(clientID) + "] Sending ACK.\n";
                 logger.Log(message);
 
                 char ackData = static_cast<char>(ACK);
@@ -165,8 +161,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             }
             else if (rxPacket.getInstruction() == FLIGHT_ACTIVE) // Check the Instruction byte for a FLIGHT_ACTIVE packet
             {
-                string message = "[Client" + clientID;
-                message = message + "] FLIGHT_ACTIVE received.\n";
+                string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.\n";
                 logger.Log(message);
 
                 // act
@@ -188,8 +183,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 // else
 
                 // Build and send a one-byte ACK packet back to the client if no collision detected
-                message = "[Client" + clientID;
-                message = message + "] Sending ACK.\n";
+                message = "[Client" + to_string(clientID) + "] Sending ACK.\n";
                 logger.Log(message);
 
                 char ackData = static_cast<char>(ACK);
@@ -205,8 +199,54 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
 
         case ServerState::Alert:
             // receive
+            // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
+            if (!recvPacket(ConnectionSocket, rxPacket))
+            {
+                string message = "[Client" + to_string(clientID) + "] Connection lost during receive.\n\n";
+                logger.Log(message);
+                flightActive = false;   // Exit loop on dropped connection
+                break;
+            }
+
             // act
-            // send
+            // Check the Instruction byte for a FLIGHT_ALERT_RESPONSE packet
+            if (rxPacket.getInstruction() == FLIGHT_ALERT_RESPONSE)
+            {
+                // Send an acknowledgement of packet and then start large data transfer receive function
+                string message = "[Client" + to_string(clientID) + "] Sending FLIGHT_ALERT_RESPONSE 'ACK' Packet. Starting Large Data Transfer process\n\n";
+                logger.Log(message);
+
+                char ackData = static_cast<char>(ACK);
+                txPacket = Packet();
+                txPacket.SetData(&ackData, 1);
+                sendPacket(ConnectionSocket, txPacket);
+
+                // Log data being sent to client
+                logger.LogSend(string(1, txPacket.getInstruction()));
+
+                std::vector<char> imageData = recvLargeData(ConnectionSocket, clientID);
+
+                // Write to file to verify it arrived intact
+                std::ofstream outFile("received_image.png", std::ios::binary);
+                outFile.write(imageData.data(), imageData.size());
+                outFile.close();
+
+                // To-Do: Collision Aversion Instructions Logic + Send information to Client                      <------------------
+
+                // Set Server state to Listening once Collision Aversion instructions are done
+                serverState = ServerState::Listening;
+            }
+            else
+            {
+                // Send an acknowledgement of packet but don't switch to anything - may want to add another flag for unexpected packet
+                char ackData = static_cast<char>(ACK);
+                txPacket = Packet();
+                txPacket.SetData(&ackData, 1);
+                sendPacket(ConnectionSocket, txPacket);
+
+                string message = "[Client" + to_string(clientID) + "] Received unexpected packet, retry start packet.\n\n";
+                logger.Log(message);
+            }
             break;
         default:
             break;
@@ -215,7 +255,42 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
 
     // Clean up this client's socket when its loop exits
     closesocket(ConnectionSocket);
-    message = "[Client" + clientID;
-    message = message + "] Disconnected\n\n";
+    message = "[Client" + to_string(clientID) + "] Disconnected\n\n";
     logger.Log(message);
+}
+
+vector<char> recvLargeData(SOCKET sock, int clientID)
+{
+    // First packet contains total expected size
+    Packet startPacket;
+    recvPacket(sock, startPacket);
+
+    // Log data received from client
+    logger.LogReceive(string(1, startPacket.getInstruction()));
+
+    int totalSize = 0;
+    memcpy(&totalSize, startPacket.getData(), 4);
+    vector<char> buffer;
+    buffer.reserve(totalSize); // reserving space for size of large data transfer
+
+    string message = "[Client" + to_string(clientID) + "] Received DATA_START packet, receiving large data transfer chunks...\n\n";
+    logger.Log(message);
+
+    while ((int)buffer.size() < totalSize)
+    {
+        Packet chunk;
+        recvPacket(sock, chunk);
+
+        // Log data received from client
+        logger.LogReceive(string(1, chunk.getInstruction()));
+
+        // append chunk data to buffer
+        char* chunkData = chunk.getData();
+        int chunkLen = chunk.getBodyLength();
+        buffer.insert(buffer.end(), chunkData, chunkData + chunkLen);
+    }
+
+    message = "[Client" + to_string(clientID) + "] Received all large data transfer chunks!\n\n";
+    logger.Log(message);
+    return buffer;
 }

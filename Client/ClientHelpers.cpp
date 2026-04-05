@@ -77,3 +77,52 @@ bool recvPacket(SOCKET sock, Packet& outPacket)
     delete[] fullBuffer;
     return true;
 }
+
+// Function to send large amounts of data across the connection
+bool sendLargeData(SOCKET sock, const char* data, int totalSize)
+{
+    // Initialize Logger
+    Logger logger;
+
+    // First send a "start" packet with the total size (4 bytes) so the server knows how much data is coming
+    // Build a 5-byte buffer: [instruction][4 bytes of total size]
+    string message = "[Client] Sending DATA_START Packet.\n";
+    logger.Log(message);
+    char startBuffer[5];
+    startBuffer[0] = static_cast<char>(DATA_START);  // first byte = instruction
+    memcpy(startBuffer + 1, &totalSize, 4);           // remaining 4 bytes = file size
+    Packet startPacket;
+    startPacket.SetData(startBuffer, 5);
+    sendPacket(sock, startPacket);
+
+    // Log data being sent to server
+    logger.LogSend(string(1, startPacket.getInstruction()));
+
+    // Send data in 255-byte chunks (max BodyLength)
+    int offset = 0;
+    while (offset < totalSize)
+    {
+        message = "[Client] Sending DATA_CHUNK Packet.\n";
+        logger.Log(message);
+        int chunkSize = min(254, totalSize - offset); // leaving space for the 1 instruction byte
+
+        // Build buffer: [DATA_CHUNK instruction][chunk bytes]
+        char* chunkBuffer = new char[chunkSize + 1];
+        chunkBuffer[0] = static_cast<char>(DATA_CHUNK);        // first byte = instruction
+        memcpy(chunkBuffer + 1, data + offset, chunkSize);     // remaining bytes = image data
+
+        Packet chunk;
+        chunk.SetData(chunkBuffer, chunkSize + 1);
+        sendPacket(sock, chunk);
+
+        // Log data being sent to server
+        logger.LogSend(string(1, chunk.getInstruction()));
+
+        delete[] chunkBuffer;
+        offset += chunkSize;
+    }
+
+    message = "[Client] Sent all large data transfer chunks!\n\n";
+    logger.Log(message);
+    return true;
+}
