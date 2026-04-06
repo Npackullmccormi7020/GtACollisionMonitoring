@@ -72,9 +72,15 @@ int main()
             // If data is read, Flag is FLIGHT_ACTIVE
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.\n";
             logger.Log(message);
+            Coordinate coord = Coordinate();
+            coord.set_X(0.0);
+            coord.set_Y(0.0);
+            coord.set_Z(0.0);
+            char* flightDataNew = new char[sizeof(coord)];
+            memcpy(flightDataNew, &coord, sizeof(coord));
             char flightData = static_cast<char>(FLIGHT_ACTIVE);
             txPacket = Packet();
-            txPacket.SetData(&flightData, 1);
+            txPacket.SetData(flightDataNew, sizeof(coord));
 
             // Log data being sent
             logger.LogSend(string(1, flightData));
