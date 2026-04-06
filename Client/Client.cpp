@@ -1,5 +1,7 @@
 #include "ClientHelpers.h"
 #include <thread>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 
@@ -53,6 +55,15 @@ int main()
     // flightActive controls the while loop — stays true until the FLIGHT_DONE handshake completes
     bool flightActive = true;
 
+    // Initialize simluted flight data variables
+    int clientSeed = rand() % 100000;
+    srand((unsigned int)time(nullptr) + clientSeed);
+    double x = (rand() % 1000) / 10.0; // 0.0 - 99.9
+    double y = (rand() % 1000) / 10.0;
+    double z = 80.0 + (rand() % 400) / 10.0; // 80 - 120
+    double vx = ((rand() % 21) - 10) / 10.0; // -1.0 to +1.0
+    double vy = ((rand() % 21) - 10) / 10.0;
+
     // The loop exits after the FLIGHT_DONE / ACK exchange completes or failure happens
     while (flightActive) {
 
@@ -72,12 +83,23 @@ int main()
             // If data is read, Flag is FLIGHT_ACTIVE
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.\n";
             logger.Log(message);
-            char flightData = static_cast<char>(FLIGHT_ACTIVE);
+
+			// Simulated changes in flight data for each packet sent
+            x += vx;
+            y += vy;
+            // z stays constant
+
+            // Build the packet data
+            char buffer[1 + sizeof(double) * 3];
+            buffer[0] = static_cast<char>(FLIGHT_ACTIVE);
+            memcpy(buffer + 1, &x, sizeof(double));
+            memcpy(buffer + 1 + sizeof(double), &y, sizeof(double));
+            memcpy(buffer + 1 + sizeof(double) * 2, &z, sizeof(double));
             txPacket = Packet();
-            txPacket.SetData(&flightData, 1);
+            txPacket.SetData(buffer, sizeof(buffer));
 
             // Log data being sent
-            logger.LogSend(string(1, flightData));
+            logger.Log("[Client] Position Sent: (" + to_string(x) + ", " + to_string(y) + ", " + to_string(z) + ")\n");
 
             if (!sendPacket(ClientSocket, txPacket))
             {
