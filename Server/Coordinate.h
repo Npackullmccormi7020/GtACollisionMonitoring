@@ -23,6 +23,7 @@ public:
 	void set_Z(double Z_in);
 	double get_distance(Coordinate Target);
 	void copy_to_Buffer(char* buffer);
+	void copy_from_Buffer(char* buffer);
 };
 
 	

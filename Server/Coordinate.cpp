@@ -43,3 +43,8 @@ void Coordinate::copy_to_Buffer(char* buffer)
 {
 	memcpy(buffer, &P, sizeof(P));
 }
+
+void Coordinate::copy_from_Buffer(char* buffer)
+{
+	memcpy(&P, buffer, sizeof(P));
+}
