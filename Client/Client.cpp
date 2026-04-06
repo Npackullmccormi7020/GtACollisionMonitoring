@@ -70,7 +70,7 @@ int main()
             this_thread::sleep_for(chrono::seconds(10));
 
             // If data is read, Flag is FLIGHT_ACTIVE
-            string message = "[Client] Sending FLIGHT_ACTIVE Packet.\n";
+            string message = "[Client] Sending FLIGHT_ACTIVE Packet.";
             logger.Log(message);
 
             // Set up a new coordinate
@@ -86,9 +86,6 @@ int main()
             txPacket = Packet();
             txPacket.SetData(flightDataNew, 1 + sizeof(double)*3);
 
-            // Log data being sent
-            logger.LogSend(string(flightDataNew));
-
             if (!sendPacket(ClientSocket, txPacket))
             {
                 logger.Log("[Client] Send failed. Disconnecting.\n\n");
@@ -96,8 +93,16 @@ int main()
                 break;
             }
 
+            // Log the instruction byte and the 3 double values in a readable format
+            // we need to do this since our buffer is only a pointer
+            double x, y, z;
+            memcpy(&x, flightDataNew + 1, sizeof(double));
+            memcpy(&y, flightDataNew + 1 + sizeof(double), sizeof(double));
+            memcpy(&z, flightDataNew + 1 + sizeof(double) * 2, sizeof(double));
+
             // Log data being sent to server
-            logger.LogSend(string(1, txPacket.getInstruction()));
+            message = string(1, txPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
+            logger.LogSend(message);
 
             // Else if at EOF, Flag is FLIGHT_DONE                                    <--------------
             //char flightData = static_cast<char>(FLIGHT_DONE);
@@ -144,7 +149,7 @@ int main()
         {
             // Send a FLIGHT_ALERT_RESPONSE packet (Large Data Transfer)
             // Server Responds with ACK packet and starts the large data transfer loop until finished and switches to Flying state
-            string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.\n";
+            string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.";
             logger.Log(message);
             char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
             txPacket = Packet();

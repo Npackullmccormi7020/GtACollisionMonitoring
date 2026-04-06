@@ -29,6 +29,8 @@ public:
     // ************* TEMPORARY FUNCTIONS *************
     // Replace these functions with the proper versions, this was just used to do multithreading testing
     Packet(char* src) {
+        Data = nullptr;
+        TxBuffer = nullptr;
         // copy first 4 bytes into Head
         memcpy(&Head, src, sizeof(Head));
         // if BodyLength > 0, allocate and copy Data

@@ -142,20 +142,26 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 flightActive = false;   // Exit loop on dropped connection
                 break;
             }
+            // Log the instruction byte and the 3 double values in a readable format
+            double x, y, z;
+            memcpy(&x, rxPacket.getData(), sizeof(double));
+            memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
+            memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
 
             // Log data received from client
-            logger.LogReceive(string(1, rxPacket.getInstruction()));
+            message = string(1, rxPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
+            logger.LogReceive(message);
 
 
 
             // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
             {
-                string message = "[Client" + to_string(clientID) + "] FLIGHT_DONE received.\n";
+                string message = "[Client" + to_string(clientID) + "] FLIGHT_DONE received.";
                 logger.Log(message);
 
                 // Build and send a one-byte ACK packet back to the client before closing the loop
-                message = "[Client" + to_string(clientID) + "] Sending ACK.\n";
+                message = "[Client" + to_string(clientID) + "] Sending ACK.";
                 logger.Log(message);
 
                 char ackData = static_cast<char>(ACK);
@@ -170,7 +176,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             }
             else if (rxPacket.getInstruction() == FLIGHT_ACTIVE) // Check the Instruction byte for a FLIGHT_ACTIVE packet
             {
-                string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.\n";
+                string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.";
                 logger.Log(message);
 
                 // act
@@ -192,7 +198,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 // else
 
                 // Build and send a one-byte ACK packet back to the client if no collision detected
-                message = "[Client" + to_string(clientID) + "] Sending ACK.\n";
+                message = "[Client" + to_string(clientID) + "] Sending ACK.";
                 logger.Log(message);
 
                 char ackData = static_cast<char>(ACK);
