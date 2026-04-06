@@ -20,6 +20,8 @@ class Packet
 
 public:
 	unsigned char getInstruction() const { return Head.Instruction; } // We do this because "Header" is a private struct in this case
+    char* getData() const { return Data; }
+    int getBodyLength() const { return Head.BodyLength; }
 
 	Packet() : Data(nullptr), TxBuffer(nullptr) { memset(&Head, 0, sizeof(Head));  Head.SourceID = 2; };		//Default Constructor - Safe State
 
@@ -38,9 +40,10 @@ public:
 
     void SetData(char* srcData, int Size) {
         Head.Instruction = srcData[0]; // first byte is the instruction flag
+        Size -= 1;
         Head.BodyLength = Size;
         Data = new char[Size];
-        memcpy(Data, srcData, Size);
+        memcpy(Data, srcData + 1, Size); // Don't copy instruction flag into data
     }
 
     char* SerializeData(int& TotalSize) {

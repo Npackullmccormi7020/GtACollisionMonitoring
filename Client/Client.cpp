@@ -4,7 +4,7 @@
 using namespace std;
 
 int main()
-{
+{   
     // Initialize Logger
     Logger logger;
 
@@ -24,7 +24,7 @@ int main()
 
     //Connect socket to specified server
     sockaddr_in SvrAddr;
-    SvrAddr.sin_family = AF_INET;						//Address family type itnernet
+    SvrAddr.sin_family = AF_INET;						//Address family type internet
     SvrAddr.sin_port = htons(27000);					//port (host to network conversion)
     SvrAddr.sin_addr.s_addr = inet_addr("127.0.0.1");	//IP address
     if ((connect(ClientSocket, (struct sockaddr*)&SvrAddr, sizeof(SvrAddr))) == SOCKET_ERROR) {
@@ -38,6 +38,14 @@ int main()
 
     ClientState clientState = ClientState::Flying;
 
+
+
+
+
+    // ================================================
+    // =============== Main Client Loop ===============
+    // ================================================
+    
     // Packet objects reused each iteration — one for sending, one for receiving
     Packet txPacket;
     Packet rxPacket;
@@ -47,16 +55,23 @@ int main()
 
     // The loop exits after the FLIGHT_DONE / ACK exchange completes or failure happens
     while (flightActive) {
+
+        // Check Client State every loop
         switch (clientState)
         {
+
+
+        // Flying State - normal state with no alerts or issues
         case ClientState::Flying:
         {
             // Build and send a data packet to the server
             
             // This will be the file reading and sending in 10s intervals                    <--------------
-
             this_thread::sleep_for(chrono::seconds(10));
+
             // If data is read, Flag is FLIGHT_ACTIVE
+            string message = "[Client] Sending FLIGHT_ACTIVE Packet.\n";
+            logger.Log(message);
             char flightData = static_cast<char>(FLIGHT_ACTIVE);
             txPacket = Packet();
             txPacket.SetData(&flightData, 1);
@@ -71,6 +86,8 @@ int main()
                 break;
             }
 
+            // Log data being sent to server
+            logger.LogSend(string(1, txPacket.getInstruction()));
 
             // Else if at EOF, Flag is FLIGHT_DONE                                    <--------------
             //char flightData = static_cast<char>(FLIGHT_DONE);
@@ -99,47 +116,83 @@ int main()
             // Log data received
             logger.LogReceive(string(1, rxPacket.getInstruction()));
 
-            // Inspect the server's response and react
+            // Check the server's response and react
             if (rxPacket.getInstruction() == COLLISION_ALERT)
             {
                 logger.Log("[Client] COLLISION_ALERT received from server. Changing State to DivertCourse.\n");
-                // TODO: transition clientState here based on logic
-                clientState = ClientState::DivertCourse;
+                clientState = ClientState::DivertCourse; // Switch states to DivertCourse to receive collision aversion instructions
             }
             else if (rxPacket.getInstruction() == ACK)
                 logger.Log("[Client] ACK received from server.\n");
             break;
         }
+
+
+
+        // Collision Aversion State based on Server Instructions + Large Data Transfer
         case ClientState::DivertCourse:
         {
-            // Build and send a FLIGHT_ALERT_RESPONSE packet (Large Data Transfer)                       <-------------
-            // Server Responds with ACK packet and loop continues until Client logic is fully done
-            
-            
-            
+            // Send a FLIGHT_ALERT_RESPONSE packet (Large Data Transfer)
+            // Server Responds with ACK packet and starts the large data transfer loop until finished and switches to Flying state
+            string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.\n";
+            logger.Log(message);
             char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
             txPacket = Packet();
             txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
             if (!sendPacket(ClientSocket, txPacket))
             {
-                logger.Log("[Client] Failed to send FLIGHT_DONE packet.\n\n");
+                logger.Log("[Client] Failed to send FLIGHT_ALERT_RESPONSE packet.\n\n");
                 flightActive = false;   // Exit even if send failed
                 break;
             }
+
+            // Log data being sent to server
+            logger.LogSend(string(1, txPacket.getInstruction()));
             logger.Log("[Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...\n");
-            
-            // Wait for the server's ACK confirming FLIGHT_DONE was received.
+
+            // Wait for the server's ACK confirming FLIGHT_ALERT_RESPONSE was received.
             if (!recvPacket(ClientSocket, rxPacket))
             {
-                logger.Log("[Client] No ACK received. Closing anyway\n\n");
-                flightActive = false;   //Exit regardless — server may have already closed
+                logger.Log("[Client] No ACK received.\n\n");
+                flightActive = false;   //Exit — server may have closed
                 break;
             }
 
+            // Log data received
+            logger.LogReceive(string(1, rxPacket.getInstruction()));
+
             // Confirm the ACK
             if (rxPacket.getInstruction() == ACK)
-                logger.Log("[Client] FLIGHT_ALERT_RESPONSE 'ACK' received\n");
-                // To-Do - Logic for when we go back to flying state
+            {
+                logger.Log("[Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...\n");
+
+                // Read image file into a byte buffer
+                // check if image exists before using
+                ifstream imageFile("Images/Live_Feed1.png", std::ios::binary | std::ios::ate);
+                if (!imageFile.is_open()) {
+                    logger.Log("[Client] Failed to open image file.\n");
+                    break;
+                }
+                int fileSize = imageFile.tellg();
+                imageFile.seekg(0);
+
+                char* imageBuffer = new char[fileSize];
+                imageFile.read(imageBuffer, fileSize);
+                imageFile.close();
+
+                // Start Large Data Transfer Process
+                sendLargeData(ClientSocket, imageBuffer, fileSize);
+
+                delete[] imageBuffer;
+
+
+
+                // To-Do: Collision Aversion Instructions Logic + Send Ack Packet for confirmation of received instructions         <----------------
+                
+
+
+                clientState = ClientState::Flying;  // resume normal flight reporting
+            }
             break;
         }
         default:

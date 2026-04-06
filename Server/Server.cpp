@@ -1,6 +1,5 @@
 ﻿#include "ServerHelpers.h"
 #include <thread>
-#include <vector>
 
 
 int main()
@@ -40,6 +39,9 @@ int main()
 		return 0;
 	}
 
+
+
+
 	// Passkey gate — prompt the user for the start passkey before the server begins accepting connections. Loops until correct key is entered.
 	{
 		string userInput;
@@ -60,6 +62,9 @@ int main()
 		}
 	}
 
+
+
+
 	// Set the running flag to true now that the passkey has been accepted
 	serverRunning = true;
 
@@ -74,6 +79,12 @@ int main()
 	SOCKET ConnectionSocket;
 	ConnectionSocket = SOCKET_ERROR;
 
+
+
+	// ======================================================
+	// =============== Background Server Loop ===============
+	// ======================================================
+	
 	// The loop continues running based on the serverRunning variable
 	while (serverRunning)
 	{
@@ -94,7 +105,7 @@ int main()
 		clientThreads.emplace_back(thread(handleClient, ConnectionSocket, clientID));
 
 		// Log total number of threads spawned so far
-		string message = "[Server] New Client Accepted. Total clients accepted: " + clientID;
+		string message = "[Server] New Client Accepted. Total clients accepted: " + to_string(clientID);
 		logger.Log(message + "\n" + "\n");
 	}
 

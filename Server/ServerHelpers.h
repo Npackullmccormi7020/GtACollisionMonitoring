@@ -5,6 +5,7 @@
 #include "State.h"
 #include "Constants.h"
 #include "Logging.h"
+#include <vector>
 
 using namespace std;
 
@@ -17,3 +18,4 @@ void inputMonitor(SOCKET ServerSocket);
 bool recvPacket(SOCKET sock, Packet& outPacket);
 bool sendPacket(SOCKET sock, Packet& packet);
 void handleClient(SOCKET ConnectionSocket, int clientID);
+vector<char> recvLargeData(SOCKET sock, int clientID);
