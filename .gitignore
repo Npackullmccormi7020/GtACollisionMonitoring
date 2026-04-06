@@ -364,3 +364,5 @@ FodyWeavers.xsd
 
 # Log Files should just be local and not checked in
 log.txt
+Client/log.txt
+Server/log.txt
