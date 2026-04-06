@@ -24,3 +24,211 @@ Tue Mar 31 10:30:05 2026 - SENT: 
 Tue Mar 31 10:30:05 2026 - RECEIVED: D
 Tue Mar 31 10:30:05 2026 - [Client] ACK received from server.
 
+Sun Apr  5 20:34:26 2026 - [Client] Connected to Ground Control.
+
+Sun Apr  5 20:34:26 2026 - [Client] Sending FLIGHT_ALERT_RESPONSE Packet.
+
+Sun Apr  5 20:34:26 2026 - SENT: 3
+Sun Apr  5 20:34:26 2026 - [Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...
+
+Sun Apr  5 20:34:26 2026 - RECEIVED: D
+Sun Apr  5 20:34:26 2026 - [Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...
+
+Sun Apr  5 20:34:51 2026 - [Client] Failed to open image file.
+
+Sun Apr  5 20:34:54 2026 - [Client] Sending FLIGHT_ALERT_RESPONSE Packet.
+
+Sun Apr  5 20:34:54 2026 - SENT: 3
+Sun Apr  5 20:34:54 2026 - [Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...
+
+Sun Apr  5 20:34:56 2026 - [Client] No ACK received.
+
+
+Sun Apr  5 20:35:38 2026 - [Client] Connected to Ground Control.
+
+Sun Apr  5 20:35:38 2026 - [Client] Sending FLIGHT_ALERT_RESPONSE Packet.
+
+Sun Apr  5 20:35:38 2026 - SENT: 3
+Sun Apr  5 20:35:38 2026 - [Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...
+
+Sun Apr  5 20:35:38 2026 - RECEIVED: D
+Sun Apr  5 20:35:38 2026 - [Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...
+
+Sun Apr  5 20:35:50 2026 - [Client] Failed to open image file.
+
+Sun Apr  5 20:35:53 2026 - [Client] Sending FLIGHT_ALERT_RESPONSE Packet.
+
+Sun Apr  5 20:35:53 2026 - SENT: 3
+Sun Apr  5 20:35:53 2026 - [Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...
+
+Sun Apr  5 20:35:55 2026 - [Client] No ACK received.
+
+
+Sun Apr  5 20:37:03 2026 - [Client] Connected to Ground Control.
+
+Sun Apr  5 20:37:03 2026 - [Client] Sending FLIGHT_ALERT_RESPONSE Packet.
+
+Sun Apr  5 20:37:03 2026 - SENT: 3
+Sun Apr  5 20:37:03 2026 - [Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...
+
+Sun Apr  5 20:37:03 2026 - RECEIVED: D
+Sun Apr  5 20:37:03 2026 - [Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...
+
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_START Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: U
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sending DATA_CHUNK Packet.
+
+Sun Apr  5 20:37:18 2026 - SENT: f
+Sun Apr  5 20:37:18 2026 - [Client] Sent all large data transfer chunks!
+
+
+Sun Apr  5 20:37:28 2026 - [Client] Sending FLIGHT_ACTIVE Packet.
+
+Sun Apr  5 20:37:28 2026 - SENT: 
+Sun Apr  5 20:37:28 2026 - SENT: 
+Sun Apr  5 20:37:28 2026 - RECEIVED: D
+Sun Apr  5 20:37:28 2026 - [Client] ACK received from server.
+
+Sun Apr  5 20:37:38 2026 - [Client] Sending FLIGHT_ACTIVE Packet.
+
+Sun Apr  5 20:37:38 2026 - SENT: 
+Sun Apr  5 20:37:38 2026 - SENT: 
+Sun Apr  5 20:37:38 2026 - RECEIVED: D
+Sun Apr  5 20:37:38 2026 - [Client] ACK received from server.
+

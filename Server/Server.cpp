@@ -39,6 +39,9 @@ int main()
 		return 0;
 	}
 
+
+
+
 	// Passkey gate — prompt the user for the start passkey before the server begins accepting connections. Loops until correct key is entered.
 	{
 		string userInput;
@@ -59,6 +62,9 @@ int main()
 		}
 	}
 
+
+
+
 	// Set the running flag to true now that the passkey has been accepted
 	serverRunning = true;
 
@@ -73,6 +79,12 @@ int main()
 	SOCKET ConnectionSocket;
 	ConnectionSocket = SOCKET_ERROR;
 
+
+
+	// ======================================================
+	// =============== Background Server Loop ===============
+	// ======================================================
+	
 	// The loop continues running based on the serverRunning variable
 	while (serverRunning)
 	{

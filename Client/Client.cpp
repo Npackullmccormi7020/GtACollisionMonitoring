@@ -126,6 +126,10 @@ int main()
                 logger.Log("[Client] ACK received from server.\n");
             break;
         }
+
+
+
+        // Collision Aversion State based on Server Instructions + Large Data Transfer
         case ClientState::DivertCourse:
         {
             // Send a FLIGHT_ALERT_RESPONSE packet (Large Data Transfer)
@@ -164,7 +168,7 @@ int main()
 
                 // Read image file into a byte buffer
                 // check if image exists before using
-                ifstream imageFile("/Images/Live_Feed1.png", std::ios::binary | std::ios::ate);
+                ifstream imageFile("Images/Live_Feed1.png", std::ios::binary | std::ios::ate);
                 if (!imageFile.is_open()) {
                     logger.Log("[Client] Failed to open image file.\n");
                     break;
@@ -176,13 +180,17 @@ int main()
                 imageFile.read(imageBuffer, fileSize);
                 imageFile.close();
 
-                // Now send it
+                // Start Large Data Transfer Process
                 sendLargeData(ClientSocket, imageBuffer, fileSize);
 
                 delete[] imageBuffer;
 
+
+
                 // To-Do: Collision Aversion Instructions Logic + Send Ack Packet for confirmation of received instructions         <----------------
                 
+
+
                 clientState = ClientState::Flying;  // resume normal flight reporting
             }
             break;

@@ -311,3 +311,71 @@ Sat Apr  4 22:00:56 2026 - [Client1] Connection lost during receive.
 Sat Apr  4 22:00:56 2026 - [Client1] Disconnected
 
 
+Sun Apr  5 20:28:56 2026 - [Server] Enter passkey to start Ground Control: 
+Sun Apr  5 20:29:09 2026 - [Server] Passkey accepted. Ground Control is now ACTIVE.
+Sun Apr  5 20:29:09 2026 - [Server] Type "x" at any time to stop the server.
+
+Sun Apr  5 20:29:09 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:29:28 2026 - [Server] New Client Accepted. Total clients accepted: 1
+
+
+Sun Apr  5 20:29:28 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:29:28 2026 - [Client1] Connection Established
+
+Sun Apr  5 20:29:38 2026 - [Client1] Received unexpected packet, retry start packet.
+
+
+Sun Apr  5 20:29:48 2026 - [Client1] Received unexpected packet, retry start packet.
+
+
+Sun Apr  5 20:29:52 2026 - [Client1] Connection lost during receive.
+
+
+Sun Apr  5 20:29:52 2026 - [Client1] Disconnected
+
+
+Sun Apr  5 20:30:55 2026 - [Server] Enter passkey to start Ground Control: 
+Sun Apr  5 20:31:03 2026 - [Server] Passkey accepted. Ground Control is now ACTIVE.
+Sun Apr  5 20:31:03 2026 - [Server] Type "x" at any time to stop the server.
+
+Sun Apr  5 20:31:03 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:31:07 2026 - [Server] New Client Accepted. Total clients accepted: 1
+
+
+Sun Apr  5 20:31:07 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:31:07 2026 - [Client1] Connection Established
+
+Sun Apr  5 20:31:07 2026 - [Client1] Sending FLIGHT_ALERT_RESPONSE 'ACK' Packet. Starting Large Data Transfer process
+
+
+Sun Apr  5 20:31:07 2026 - SENT: D
+Sun Apr  5 20:31:07 2026 - RECEIVED: 3
+Sun Apr  5 20:32:33 2026 - [Server] Enter passkey to start Ground Control: 
+Sun Apr  5 20:32:49 2026 - [Server] Incorrect passkey. Try again: 
+Sun Apr  5 20:32:55 2026 - [Server] Passkey accepted. Ground Control is now ACTIVE.
+Sun Apr  5 20:32:55 2026 - [Server] Type "x" at any time to stop the server.
+
+Sun Apr  5 20:32:55 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:32:59 2026 - [Server] New Client Accepted. Total clients accepted: 1
+
+
+Sun Apr  5 20:32:59 2026 - [Client1] Connection Established
+
+Sun Apr  5 20:32:59 2026 - Waiting to accept a client connection... 
+
+
+Sun Apr  5 20:32:59 2026 - [Client1] Sending FLIGHT_ALERT_RESPONSE 'ACK' Packet. Starting Large Data Transfer process
+
+
+Sun Apr  5 20:32:59 2026 - SENT: D
+Sun Apr  5 20:32:59 2026 - RECEIVED: 3

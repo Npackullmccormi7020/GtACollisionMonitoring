@@ -118,15 +118,22 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
     Packet rxPacket;
     Packet txPacket;
 
-    //char RxBuffer[128] = {};
+
+    // ================================================
+    // =============== Main Server Loop ===============
+    // ================================================
 
     // The loop exits when a FLIGHT_DONE packet is received
     while (flightActive)
     {
-        // Main Logic Loop
+        // Check Server State every loop
         switch (serverState)
         {
+
+
+        // Normal State for Listening to Active Flights and detecting potential collisions
         case ServerState::Listening:
+
             // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
             if (!recvPacket(ConnectionSocket, rxPacket))
             {
@@ -138,6 +145,8 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
 
             // Log data received from client
             logger.LogReceive(string(1, rxPacket.getInstruction()));
+
+
 
             // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
@@ -165,7 +174,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 logger.Log(message);
 
                 // act
-                // To-Do - Create Logic for determining if a collision is imminent
+                // To-Do - Create Logic for determining if a collision is imminent            <-------------
 
                 // If(collisionDetected)
 
@@ -194,10 +203,12 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 // Log data being sent to client
                 logger.LogSend(string(1, txPacket.getInstruction()));
             }
-            // send
             break;
 
+
+        // Alert state to send Collision Aversion Instructions to Client + Large Data Transfer
         case ServerState::Alert:
+
             // receive
             // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
             if (!recvPacket(ConnectionSocket, rxPacket))
@@ -207,6 +218,10 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 flightActive = false;   // Exit loop on dropped connection
                 break;
             }
+
+            // Log data received from client
+            logger.LogReceive(string(1, rxPacket.getInstruction()));
+
 
             // act
             // Check the Instruction byte for a FLIGHT_ALERT_RESPONSE packet
@@ -224,6 +239,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 // Log data being sent to client
                 logger.LogSend(string(1, txPacket.getInstruction()));
 
+                // Start Large Data Transfer Process
                 std::vector<char> imageData = recvLargeData(ConnectionSocket, clientID);
 
                 // Write to file to verify it arrived intact
@@ -231,7 +247,11 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 outFile.write(imageData.data(), imageData.size());
                 outFile.close();
 
+
+
                 // To-Do: Collision Aversion Instructions Logic + Send information to Client                      <------------------
+
+
 
                 // Set Server state to Listening once Collision Aversion instructions are done
                 serverState = ServerState::Listening;
@@ -243,6 +263,9 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
+
+                // Log data being sent to client
+                logger.LogSend(string(1, txPacket.getInstruction()));
 
                 string message = "[Client" + to_string(clientID) + "] Received unexpected packet, retry start packet.\n\n";
                 logger.Log(message);
