@@ -38,3 +38,8 @@ double Coordinate::get_distance(Coordinate Target)
 	double result = sqrt((Target.get_X() - P.X) * (Target.get_X() - P.X) + (Target.get_Y() - P.Y) * (Target.get_Y() - P.Y) + (Target.get_Z() - P.Z) * (Target.get_Z() - P.Z));
 	return result;
 }
+
+void Coordinate::copy_to_Buffer(char* buffer)
+{
+	memcpy(buffer, &P, sizeof(P));
+}

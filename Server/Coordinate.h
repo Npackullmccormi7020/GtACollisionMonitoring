@@ -1,5 +1,6 @@
 #pragma once
 #include <math.h>
+#include <cstring>
 
 class Coordinate
 {
@@ -21,6 +22,7 @@ public:
 	double get_Z();
 	void set_Z(double Z_in);
 	double get_distance(Coordinate Target);
+	void copy_to_Buffer(char* buffer);
 };
 
 	
