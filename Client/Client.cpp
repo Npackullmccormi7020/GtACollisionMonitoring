@@ -72,12 +72,22 @@ int main()
             // If data is read, Flag is FLIGHT_ACTIVE
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.\n";
             logger.Log(message);
-            char flightData = static_cast<char>(FLIGHT_ACTIVE);
+
+            // Set up a new coordinate
+            Coordinate coord = Coordinate();
+            coord.set_X(4.5);           // Implement incremental flight
+            coord.set_Y(2.3);           // Implement incremental flight
+            coord.set_Z(6.7);           // Implement incremental flight
+
+            // Copy the coordiante data into the packet
+            char* flightDataNew = new char[1 + sizeof(double)*3];       // Offset for needed flight instructions byte
+            flightDataNew[0] = static_cast<char>(FLIGHT_ACTIVE);        // Get the flight instruction into the buffer at the start
+            coord.copy_to_Buffer(flightDataNew+1);                      // Offset for needed flight instructions byte
             txPacket = Packet();
-            txPacket.SetData(&flightData, 1);
+            txPacket.SetData(flightDataNew, 1 + sizeof(double)*3);
 
             // Log data being sent
-            logger.LogSend(string(1, flightData));
+            logger.LogSend(string(flightDataNew));
 
             if (!sendPacket(ClientSocket, txPacket))
             {

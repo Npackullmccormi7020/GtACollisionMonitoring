@@ -4,6 +4,7 @@
 #include "../Server/Packet.h"
 #include "../Server/Constants.h"
 #include "../Server/Logging.h"
+#include "../Server/Coordinate.h"
 #include "State.h"
 
 using namespace std;

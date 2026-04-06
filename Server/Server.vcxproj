@@ -128,6 +128,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Coordinate.cpp" />
     <ClCompile Include="Logging.cpp" />
     <ClCompile Include="Server.cpp">
       <PreprocessToFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</PreprocessToFile>
@@ -147,6 +148,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Constants.h" />
+    <ClInclude Include="Coordinate.h" />
     <ClInclude Include="Logging.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="ServerHelpers.h" />
