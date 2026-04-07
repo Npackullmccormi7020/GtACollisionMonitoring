@@ -1,5 +1,7 @@
 #include "ClientHelpers.h"
 #include <thread>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 
@@ -38,9 +40,16 @@ int main()
 
     ClientState clientState = ClientState::Flying;
 
-
-
-
+    // Set up a new coordinate
+    srand((unsigned int)time(nullptr) + GetCurrentProcessId());
+    Coordinate coord = Coordinate(
+        (rand() % 1000) / 10.0,   // 0.0 - 99.9
+        (rand() % 1000) / 10.0,   // 0.0 - 99.9
+        80.0 + (rand() % 400) / 10.0 // 80.0 - 120.0
+    );
+    double vx = ((rand() % 21) - 10) / 10.0; // -1.0 - +1.0
+    double vy = ((rand() % 21) - 10) / 10.0; // -1.0 - +1.0
+    double vz = 0; // keep altitude constant
 
     // ================================================
     // =============== Main Client Loop ===============
@@ -73,11 +82,10 @@ int main()
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.";
             logger.Log(message);
 
-            // Set up a new coordinate
-            Coordinate coord = Coordinate();
-            coord.set_X(4.5);           // Implement incremental flight
-            coord.set_Y(2.3);           // Implement incremental flight
-            coord.set_Z(6.7);           // Implement incremental flight
+            // Update position based on velocity vector
+            coord.set_X(coord.get_X() + vx);
+            coord.set_Y(coord.get_Y() + vy);
+            coord.set_Z(coord.get_Z() + vz);
 
             // Copy the coordiante data into the packet
             char* flightDataNew = new char[1 + sizeof(double)*3];       // Offset for needed flight instructions byte
