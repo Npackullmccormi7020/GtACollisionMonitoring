@@ -142,21 +142,11 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 flightActive = false;   // Exit loop on dropped connection
                 break;
             }
-            // Log the instruction byte and the 3 double values in a readable format
-            double x, y, z;
-            memcpy(&x, rxPacket.getData(), sizeof(double));
-            memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
-            memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
-
-            // Log data received from client
-            message = string(1, rxPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
-            logger.LogReceive(message);
-
-
 
             // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
             {
+                logger.LogReceive(string(1, rxPacket.getInstruction()));
                 string message = "[Client" + to_string(clientID) + "] FLIGHT_DONE received.";
                 logger.Log(message);
 
@@ -176,6 +166,16 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
             }
             else if (rxPacket.getInstruction() == FLIGHT_ACTIVE) // Check the Instruction byte for a FLIGHT_ACTIVE packet
             {
+
+                // Log the instruction byte and the 3 double values in a readable format
+                double x, y, z;
+                memcpy(&x, rxPacket.getData(), sizeof(double));
+                memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
+                memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
+
+                // Log data received from client
+                message = string(1, rxPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
+                logger.LogReceive(message);
                 string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.";
                 logger.Log(message);
 

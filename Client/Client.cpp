@@ -2,13 +2,25 @@
 #include <thread>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 
 using namespace std;
+using std::ifstream;
 
-int main()
+int main(int argc, char* argv[])
 {   
     // Initialize Logger
     Logger logger;
+
+    // Validate command-line argument
+    if (argc < 2)
+    {
+        logger.Log("[Client] ERROR: No flight path file provided.");
+        logger.Log("[Client] Usage: Client.exe <flightpath_file>");
+        return 1;
+    }
+
+    string flightPathFile = "Data/" +string(argv[1]);
 
     //starts Winsock DLLs
     WSADATA wsaData;
@@ -39,17 +51,7 @@ int main()
     logger.Log("[Client] Connected to Ground Control.\n");
 
     ClientState clientState = ClientState::Flying;
-
-    // Set up a new coordinate
-    srand((unsigned int)time(nullptr) + GetCurrentProcessId());
-    Coordinate coord = Coordinate(
-        (rand() % 1000) / 10.0,   // 0.0 - 99.9
-        (rand() % 1000) / 10.0,   // 0.0 - 99.9
-        80.0 + (rand() % 400) / 10.0 // 80.0 - 120.0
-    );
-    double vx = ((rand() % 21) - 10) / 10.0; // -1.0 - +1.0
-    double vy = ((rand() % 21) - 10) / 10.0; // -1.0 - +1.0
-    double vz = 0; // keep altitude constant
+    Coordinate cords = Coordinate();
 
     // ================================================
     // =============== Main Client Loop ===============
@@ -61,6 +63,19 @@ int main()
 
     // flightActive controls the while loop — stays true until the FLIGHT_DONE handshake completes
     bool flightActive = true;
+
+    // Open the flight path file before the loop begins
+    // Each line contains one X,Y,Z coordinate set sent every 10 seconds
+    ifstream flightFile(flightPathFile);
+    if (!flightFile.is_open())
+    {
+        logger.Log("[Client] ERROR: Failed to open file: " + flightPathFile);
+        flightActive = false;
+    }
+    else
+    {
+        logger.Log("[Client] Using flight path file: " + flightPathFile);
+    }
 
     // The loop exits after the FLIGHT_DONE / ACK exchange completes or failure happens
     while (flightActive) {
@@ -78,19 +93,79 @@ int main()
             // This will be the file reading and sending in 10s intervals                    <--------------
             this_thread::sleep_for(chrono::seconds(10));
 
-            // If data is read, Flag is FLIGHT_ACTIVE
+            // Read the next line from the flight path file
+            string line;
+            bool foundLine = false;
+
+            // Loop only while we read a line AND it's invalid (empty/comment)
+            while (getline(flightFile, line) && (line.empty() || line[0] == '#')) 
+            {// do nothing — just skip invalid lines
+            }
+
+            // If we failed to read a valid line, we're at EOF
+            if (!flightFile)
+            {
+                logger.Log("[Client] EOF reached. Sending FLIGHT_DONE.");
+
+                char doneData = static_cast<char>(FLIGHT_DONE);
+                txPacket = Packet();
+                txPacket.SetData(&doneData, 1);
+
+                if (!sendPacket(ClientSocket, txPacket))
+                {
+                    logger.Log("[Client] Failed to send FLIGHT_DONE. Disconnecting.");
+                    flightActive = false;
+                }
+                else if (!recvPacket(ClientSocket, rxPacket))
+                {
+                    logger.Log("[Client] No ACK received for FLIGHT_DONE. Disconnecting.");
+                    flightActive = false;
+                }
+                else if (rxPacket.getInstruction() == ACK)
+                {
+                    logger.Log("[Client] FLIGHT_DONE ACK received. Closing connection.");
+                    flightActive = false;
+                }
+
+                break;
+            }
+
+            // Parse the X,Y,Z values from the comma-separated line
+            double x = 0.0, y = 0.0, z = 0.0;
+            try
+            {
+                size_t firstComma = line.find(',');
+                size_t secondComma = line.find(',', firstComma + 1);
+
+                if (firstComma == string::npos || secondComma == string::npos)
+                {
+                    logger.Log("[Client] Malformed line in flightpath.txt: " + line + " — skipping.");
+                    break;
+                }
+
+                x = stod(line.substr(0, firstComma));
+                y = stod(line.substr(firstComma + 1, secondComma - firstComma - 1));
+                z = stod(line.substr(secondComma + 1));
+            }
+            catch (const exception& e)
+            {
+                logger.Log("[Client] Failed to parse coordinate line: " + line + " | Error: " + e.what());
+                break;
+            }
+
+            // Set the parsed values into the Coordinate object
+            cords.set_X(x);
+            cords.set_Y(y);
+            cords.set_Z(z);
+
+            // Log the coordinate being sent
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.";
             logger.Log(message);
 
-            // Update position based on velocity vector
-            coord.set_X(coord.get_X() + vx);
-            coord.set_Y(coord.get_Y() + vy);
-            coord.set_Z(coord.get_Z() + vz);
-
-            // Copy the coordiante data into the packet
+            // Copy the coordinate data into the packet
             char* flightDataNew = new char[1 + sizeof(double)*3];       // Offset for needed flight instructions byte
             flightDataNew[0] = static_cast<char>(FLIGHT_ACTIVE);        // Get the flight instruction into the buffer at the start
-            coord.copy_to_Buffer(flightDataNew+1);                      // Offset for needed flight instructions byte
+            cords.copy_to_Buffer(flightDataNew+1);                      // Offset for needed flight instructions byte
             txPacket = Packet();
             txPacket.SetData(flightDataNew, 1 + sizeof(double)*3);
 
@@ -103,30 +178,16 @@ int main()
 
             // Log the instruction byte and the 3 double values in a readable format
             // we need to do this since our buffer is only a pointer
-            double x, y, z;
-            memcpy(&x, flightDataNew + 1, sizeof(double));
+            /*memcpy(&x, flightDataNew + 1, sizeof(double));
             memcpy(&y, flightDataNew + 1 + sizeof(double), sizeof(double));
-            memcpy(&z, flightDataNew + 1 + sizeof(double) * 2, sizeof(double));
+            memcpy(&z, flightDataNew + 1 + sizeof(double) * 2, sizeof(double));*/
 
             // Log data being sent to server
             message = string(1, txPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
             logger.LogSend(message);
 
-            // Else if at EOF, Flag is FLIGHT_DONE                                    <--------------
-            //char flightData = static_cast<char>(FLIGHT_DONE);
-            //txPacket = Packet();
-            //txPacket.SetData(&flightData, 1);
-            //if (!sendPacket(ClientSocket, txPacket))
-            //{
-            //    cout << "[Client] Send failed. Disconnecting." << endl;
-            //    flightActive = false;   // Exit loop on send failure
-            //    break;
-            //}
-            //if (rxPacket.getInstruction() == ACK)
-            //{
-            //    cout << "[Client] FLIGHT_DONE 'ACK' received" << endl;
-            //    flightActive = false;   // Exit after full Flight Done handshake
-            //}
+            // [ADDED] Clean up the buffer now that SetData has made its own copy
+            delete[] flightDataNew;
 
             // Receive a response packet from the server
             if (!recvPacket(ClientSocket, rxPacket))
