@@ -24,8 +24,8 @@ void Logger::Log(const string& message) {
 }
 
 // Data is logged upon both receiving and sending data
-void Logger::LogReceive(const string& data) { Log("RECEIVED: " + Truncate(data)); }
-void Logger::LogSend(const string& data) { Log("SENT: " + Truncate(data)); }
+void Logger::LogReceive(const string& data) { Log(FormatPacketLog("RECEIVE", data)); }
+void Logger::LogSend(const string& data) { Log(FormatPacketLog("SEND", data)); }
 
 // Retreives and formats a timestamp for each new log entry
 string Logger::CurrentTime() {
@@ -41,3 +41,7 @@ string Logger::Truncate(const string& data) {
     if (data.length() > maxLen) { return data.substr(0, maxLen) + "..."; }
     return data;
 };
+
+string Logger::FormatPacketLog(const string& direction, const string& data) {
+    return "PACKET|DIR=" + direction + "|DATA=" + Truncate(data);
+}

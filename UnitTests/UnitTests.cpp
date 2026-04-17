@@ -849,7 +849,7 @@ namespace UnitTests
             readableLogger.LogSend("w | 1.000000, 2.000000, 3.000000");
 
             string logContents = ReadTextFile("log.txt");
-            Assert::IsTrue(logContents.find(" - SENT: ") != string::npos);
+            Assert::IsTrue(logContents.find(" - PACKET|DIR=SEND|DATA=") != string::npos);
             Assert::IsTrue(logContents.find("1.000000, 2.000000, 3.000000") != string::npos);
         }
 
@@ -967,8 +967,8 @@ namespace UnitTests
 
             string logContents = ReadTextFile("log.txt");
             Assert::IsTrue(logContents.find("Connection Established") != string::npos);
-            Assert::IsTrue(logContents.find("RECEIVED: w | 9.000000, 8.000000, 7.000000") != string::npos);
-            Assert::IsTrue(logContents.find("SENT: D") != string::npos);
+            Assert::IsTrue(logContents.find("PACKET|DIR=RECEIVE|DATA=w | 9.000000, 8.000000, 7.000000") != string::npos);
+            Assert::IsTrue(logContents.find("PACKET|DIR=SEND|DATA=D") != string::npos);
             Assert::IsTrue(logContents.find("FLIGHT_DONE received.") != string::npos);
         }
 

@@ -24,4 +24,7 @@ private:
 
     // Shortens the output if it's too long
     string Truncate(const string& data);
+
+    // Formats packet logging into a stable, machine-checkable text shape
+    string FormatPacketLog(const string& direction, const string& data);
 };
