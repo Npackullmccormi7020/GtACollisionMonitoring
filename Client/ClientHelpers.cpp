@@ -1,6 +1,8 @@
 #include "ClientHelpers.h"
+#include <algorithm>
+#include <fstream>
 
-// sendPacket() — serializes a Packet and sends all bytes to the server, looping until fully delivered
+// sendPacket() - serializes a Packet and sends all bytes to the server, looping until fully delivered
 // Returns true on success, false on send error
 bool sendPacket(SOCKET sock, Packet& packet)
 {
@@ -11,7 +13,7 @@ bool sendPacket(SOCKET sock, Packet& packet)
     if (buffer == nullptr || totalSize <= 0)
         return false;
 
-    // Loop until all bytes are sent — TCP may split large sends
+    // Loop until all bytes are sent - TCP may split large sends
     int totalSent = 0;
     while (totalSent < totalSize)
     {
@@ -26,7 +28,7 @@ bool sendPacket(SOCKET sock, Packet& packet)
     return true;
 }
 
-// recvPacket() — reads one full packet from the server into a Packet object, following the Header + Data layout defined in Packet.h
+// recvPacket() - reads one full packet from the server into a Packet object, following the Header + Data layout defined in Packet.h
 // Returns true on success, false if the connection dropped or a receive error occurred
 bool recvPacket(SOCKET sock, Packet& outPacket)
 {
@@ -44,7 +46,7 @@ bool recvPacket(SOCKET sock, Packet& outPacket)
         totalReceived += received;
     }
 
-    // The 4th header byte is BodyLength — read that many data bytes
+    // The 4th header byte is BodyLength - read that many data bytes
     unsigned char bodyLength = static_cast<unsigned char>(headerBuf[3]);
 
     // Allocate a full packet buffer: header + body
@@ -98,18 +100,17 @@ bool sendLargeData(SOCKET sock, const char* data, int totalSize)
     // Log data being sent to server
     logger.LogSend(string(1, startPacket.getInstruction()));
 
-    // Send data in 255-byte chunks (max BodyLength)
-    int offset = 0;
-    while (offset < totalSize)
+    vector<vector<char>> chunks = splitLargeDataChunks(data, totalSize);
+    for (const vector<char>& chunkPayload : chunks)
     {
         message = "[Client] Sending DATA_CHUNK Packet.\n";
         logger.Log(message);
-        int chunkSize = min(254, totalSize - offset); // leaving space for the 1 instruction byte
+        int chunkSize = static_cast<int>(chunkPayload.size());
 
         // Build buffer: [DATA_CHUNK instruction][chunk bytes]
         char* chunkBuffer = new char[chunkSize + 1];
         chunkBuffer[0] = static_cast<char>(DATA_CHUNK);        // first byte = instruction
-        memcpy(chunkBuffer + 1, data + offset, chunkSize);     // remaining bytes = image data
+        memcpy(chunkBuffer + 1, chunkPayload.data(), chunkSize);
 
         Packet chunk;
         chunk.SetData(chunkBuffer, chunkSize + 1);
@@ -119,10 +120,108 @@ bool sendLargeData(SOCKET sock, const char* data, int totalSize)
         logger.LogSend(string(1, chunk.getInstruction()));
 
         delete[] chunkBuffer;
-        offset += chunkSize;
     }
 
     message = "[Client] Sent all large data transfer chunks!\n\n";
     logger.Log(message);
     return true;
+}
+
+ClientState getNextClientState(ClientState currentState, unsigned char instruction)
+{
+    if (currentState == ClientState::Flying && instruction == COLLISION_ALERT)
+        return ClientState::DivertCourse;
+
+    return currentState;
+}
+
+bool sendFlightAlertResponsePacket(SOCKET sock)
+{
+    Packet packet;
+    char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
+    packet.SetData(&responseInstruction, sizeof(responseInstruction));
+    return sendPacket(sock, packet);
+}
+
+bool tryParseFlightPathLine(const string& line, Coordinate& outCoordinate)
+{
+    if (line.empty() || line[0] == '#')
+        return false;
+
+    size_t firstComma = line.find(',');
+    size_t secondComma = line.find(',', firstComma == string::npos ? firstComma : firstComma + 1);
+    if (firstComma == string::npos || secondComma == string::npos)
+        return false;
+
+    try
+    {
+        double x = stod(line.substr(0, firstComma));
+        double y = stod(line.substr(firstComma + 1, secondComma - firstComma - 1));
+        double z = stod(line.substr(secondComma + 1));
+        outCoordinate = Coordinate(x, y, z);
+        return true;
+    }
+    catch (const exception&)
+    {
+        return false;
+    }
+}
+
+bool loadFlightPathCoordinates(const string& flightPathFile, vector<Coordinate>& outCoordinates)
+{
+    ifstream flightFile(flightPathFile);
+    if (!flightFile.is_open())
+        return false;
+
+    outCoordinates.clear();
+
+    string line;
+    while (getline(flightFile, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+
+        Coordinate coordinate;
+        if (!tryParseFlightPathLine(line, coordinate))
+            return false;
+
+        outCoordinates.push_back(coordinate);
+    }
+
+    return true;
+}
+
+bool loadBinaryFile(const string& filePath, vector<char>& outBytes)
+{
+    ifstream input(filePath, ios::binary | ios::ate);
+    if (!input.is_open())
+        return false;
+
+    streamsize size = input.tellg();
+    if (size < 0)
+        return false;
+
+    input.seekg(0, ios::beg);
+    outBytes.resize(static_cast<size_t>(size));
+    if (size == 0)
+        return true;
+
+    return input.read(outBytes.data(), size).good();
+}
+
+vector<vector<char>> splitLargeDataChunks(const char* data, int totalSize, int maxChunkSize)
+{
+    vector<vector<char>> chunks;
+    if (data == nullptr || totalSize <= 0 || maxChunkSize <= 0)
+        return chunks;
+
+    int offset = 0;
+    while (offset < totalSize)
+    {
+        int chunkSize = min(maxChunkSize, totalSize - offset);
+        chunks.emplace_back(data + offset, data + offset + chunkSize);
+        offset += chunkSize;
+    }
+
+    return chunks;
 }

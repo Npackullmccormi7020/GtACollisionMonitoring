@@ -12,7 +12,7 @@
 
 using namespace std;
 
-// Defined in ServerHelpers.cpp — extern here so all files that include this header can access them
+// Defined in ServerHelpers.cpp ï¿½ extern here so all files that include this header can access them
 extern atomic<bool> serverRunning;
 extern const string START_PASSKEY;
 extern map<int, Coordinate> activePlanes;
@@ -24,3 +24,5 @@ bool recvPacket(SOCKET sock, Packet& outPacket);
 bool sendPacket(SOCKET sock, Packet& packet);
 void handleClient(SOCKET ConnectionSocket, int clientID);
 vector<char> recvLargeData(SOCKET sock, int clientID);
+bool writeBinaryFile(const string& filePath, const vector<char>& data);
+
