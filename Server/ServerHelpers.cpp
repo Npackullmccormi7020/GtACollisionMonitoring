@@ -1,18 +1,115 @@
 #include "ServerHelpers.h"
+#include <array>
 
-// Variable definitions ï¿½ owned here, declared extern in ServerHelpers.h
+// Variable definitions - owned here, declared extern in ServerHelpers.h
 const string START_PASSKEY = "Grp8_StartGroundControl";
 atomic<bool> serverRunning(false);
 Logger logger;
 
-// Shared map of clientID with last known position and its mutex - declared extrern in ServerHelpers.h
+// Shared maps for collision detection and aversion state - declared extern in ServerHelpers.h
 map<int, Coordinate> activePlanes;
+map<int, ClientAversionState> clientAversionStates;
 mutex planesMutex;
 
-// Minimum safe distance between any two planes
-const double SAFE_DISTANCE = 5.0;
+namespace
+{
+    struct Vector3
+    {
+        double x;
+        double y;
+        double z;
+    };
 
-// Input monitor thread function — runs concurrently with the accept loop.
+    Vector3 ToVector(const Coordinate& coordinate)
+    {
+        return { coordinate.get_X(), coordinate.get_Y(), coordinate.get_Z() };
+    }
+
+    Coordinate ToCoordinate(const Vector3& vector)
+    {
+        return Coordinate(vector.x, vector.y, vector.z);
+    }
+
+    Vector3 Add(const Vector3& left, const Vector3& right)
+    {
+        return { left.x + right.x, left.y + right.y, left.z + right.z };
+    }
+
+    Vector3 Subtract(const Vector3& left, const Vector3& right)
+    {
+        return { left.x - right.x, left.y - right.y, left.z - right.z };
+    }
+
+    Vector3 Scale(const Vector3& vector, double scale)
+    {
+        return { vector.x * scale, vector.y * scale, vector.z * scale };
+    }
+
+    double Magnitude(const Vector3& vector)
+    {
+        return sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+    }
+
+    Vector3 Normalize(const Vector3& vector)
+    {
+        const double length = Magnitude(vector);
+        if (length == 0.0)
+            return { 0.0, 0.0, 0.0 };
+
+        return Scale(vector, 1.0 / length);
+    }
+
+    Vector3 BuildForwardVector(const Coordinate& previousPosition, const Coordinate& currentPosition, const Coordinate& otherPosition)
+    {
+        Vector3 forward = Normalize(Subtract(ToVector(currentPosition), ToVector(previousPosition)));
+        if (Magnitude(forward) == 0.0)
+            forward = Normalize(Subtract(ToVector(otherPosition), ToVector(currentPosition)));
+        if (Magnitude(forward) == 0.0)
+            forward = { 1.0, 0.0, 0.0 };
+
+        return forward;
+    }
+
+    Vector3 BuildLateralVector(const Coordinate& previousPosition, const Coordinate& currentPosition, const Coordinate& otherPosition)
+    {
+        const Vector3 forward = BuildForwardVector(previousPosition, currentPosition, otherPosition);
+
+        Vector3 lateral = { -forward.y, forward.x, 0.0 };
+        if (Magnitude(lateral) == 0.0)
+            lateral = { 0.0, -forward.z, forward.y };
+        if (Magnitude(lateral) == 0.0)
+            lateral = { 0.0, 1.0, 0.0 };
+
+        return Normalize(lateral);
+    }
+
+    void MarkPairForCollisionAversion(int clientID, int otherClientID)
+    {
+        ClientAversionState& thisPlane = clientAversionStates[clientID];
+        ClientAversionState& otherPlane = clientAversionStates[otherClientID];
+
+        const Coordinate thisPrevious = thisPlane.hasPreviousPosition ? thisPlane.previousPosition : thisPlane.currentPosition;
+        const Coordinate otherPrevious = otherPlane.hasPreviousPosition ? otherPlane.previousPosition : otherPlane.currentPosition;
+
+        thisPlane.pendingCollisionAlert = true;
+        otherPlane.pendingCollisionAlert = true;
+        thisPlane.pairedClientID = otherClientID;
+        otherPlane.pairedClientID = clientID;
+        thisPlane.avoidanceStepsRemaining = COLLISION_AVERSION_COORDINATE_COUNT;
+        otherPlane.avoidanceStepsRemaining = COLLISION_AVERSION_COORDINATE_COUNT;
+        thisPlane.pendingAversionCoordinates = buildCollisionAversionPath(thisPrevious, thisPlane.currentPosition, otherPlane.currentPosition, 1);
+        otherPlane.pendingAversionCoordinates = buildCollisionAversionPath(otherPrevious, otherPlane.currentPosition, thisPlane.currentPosition, -1);
+    }
+
+    bool shouldCheckForCollision(const ClientAversionState& planeState)
+    {
+        return planeState.hasCurrentPosition
+            && !planeState.pendingCollisionAlert
+            && planeState.avoidanceStepsRemaining == 0;
+    }
+}
+
+// Input monitor thread function - runs concurrently with the accept loop.
 // Waits for the user to type "x" then sets serverRunning to false, which causes the accept loop to exit on its next iteration.
 // Also calls closesocket() on ServerSocket to unblock the blocking accept() call.
 void inputMonitor(SOCKET ServerSocket)
@@ -24,8 +121,8 @@ void inputMonitor(SOCKET ServerSocket)
         if (input == "x")
         {
             logger.Log("\n[Server] Shutdown command received. Stopping server...\n");
-            serverRunning = false;      // Signal the accept loop to stop
-            closesocket(ServerSocket);  // Unblocks accept() so the loop can check the flag
+            serverRunning = false;
+            closesocket(ServerSocket);
             break;
         }
     }
@@ -35,38 +132,27 @@ void inputMonitor(SOCKET ServerSocket)
 // Returns true on success, false if the connection dropped or a receive error occurred.
 bool recvPacket(SOCKET sock, Packet& outPacket)
 {
-    // Receive the fixed-size header (4 bytes = EmptyPktSize)
     char headerBuf[EmptyPktSize] = {};
     int totalReceived = 0;
     while (totalReceived < EmptyPktSize)
     {
-        int received = recv(sock,
-            headerBuf + totalReceived,
-            EmptyPktSize - totalReceived,
-            0);
+        int received = recv(sock, headerBuf + totalReceived, EmptyPktSize - totalReceived, 0);
         if (received <= 0)
-            return false;   // Connection closed or error
+            return false;
         totalReceived += received;
     }
 
-    // The 4th header byte is BodyLength ï¿½ read that many data bytes
     unsigned char bodyLength = static_cast<unsigned char>(headerBuf[3]);
-
-    // Allocate a full packet buffer: header + body
-    int totalSize = EmptyPktSize + bodyLength;
+    const int totalSize = EmptyPktSize + bodyLength;
     char* fullBuffer = new char[totalSize];
-    memcpy(fullBuffer, headerBuf, EmptyPktSize);    // Copy header into buffer
+    memcpy(fullBuffer, headerBuf, EmptyPktSize);
 
-    // Receive the body bytes if any exist
     if (bodyLength > 0)
     {
         int bodyReceived = 0;
         while (bodyReceived < bodyLength)
         {
-            int received = recv(sock,
-                fullBuffer + EmptyPktSize + bodyReceived,
-                bodyLength - bodyReceived,
-                0);
+            int received = recv(sock, fullBuffer + EmptyPktSize + bodyReceived, bodyLength - bodyReceived, 0);
             if (received <= 0)
             {
                 delete[] fullBuffer;
@@ -76,9 +162,7 @@ bool recvPacket(SOCKET sock, Packet& outPacket)
         }
     }
 
-    // Reconstruct the Packet object from the raw buffer
     outPacket = Packet(fullBuffer);
-
     delete[] fullBuffer;
     return true;
 }
@@ -87,276 +171,314 @@ bool recvPacket(SOCKET sock, Packet& outPacket)
 // Returns true on success, false on send error.
 bool sendPacket(SOCKET sock, Packet& packet)
 {
-    // Serialize the packet into a flat byte buffer
     int totalSize = 0;
     char* buffer = packet.SerializeData(totalSize);
 
     if (buffer == nullptr || totalSize <= 0)
         return false;
 
-    // Loop until all bytes are sent (TCP may split large sends)
     int totalSent = 0;
     while (totalSent < totalSize)
     {
-        int sent = send(sock,
-            buffer + totalSent,
-            totalSize - totalSent,
-            0);
+        int sent = send(sock, buffer + totalSent, totalSize - totalSent, 0);
         if (sent == SOCKET_ERROR)
             return false;
         totalSent += sent;
     }
+
     return true;
 }
 
-// Per-client handler function ï¿½ each accepted connection runs this on its own thread.
-// Essentially acting as the main loop that's isolated per client.
+// Per-client handler function - each accepted connection runs this on its own thread.
 void handleClient(SOCKET ConnectionSocket, int clientID)
 {
     string message = "[Client" + to_string(clientID) + "] Connection Established\n";
     logger.Log(message);
 
     ServerState serverState = ServerState::Listening;
-
-    // flightActive controls the while loop ï¿½ stays true until the client sends a FLIGHT_DONE packet
     bool flightActive = true;
-
-    // Packet objects reused each iteration ï¿½ one for receiving, one for sending
     Packet rxPacket;
     Packet txPacket;
 
-
-    // ================================================
-    // =============== Main Server Loop ===============
-    // ================================================
-
-    // The loop exits when a FLIGHT_DONE packet is received
     while (flightActive)
     {
-        // Check Server State every loop
         switch (serverState)
         {
-
-
-        // Normal State for Listening to Active Flights and detecting potential collisions
         case ServerState::Listening:
-
-            // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
+        {
             if (!recvPacket(ConnectionSocket, rxPacket))
             {
-                string message = "[Client" + to_string(clientID) + "] Connection lost during receive.\n\n";
-                logger.Log(message);
-                flightActive = false;   // Exit loop on dropped connection
+                logger.Log("[Client" + to_string(clientID) + "] Connection lost during receive.\n\n");
+                flightActive = false;
                 break;
             }
 
-            // Check the Instruction byte for a FLIGHT_DONE packet
             if (rxPacket.getInstruction() == FLIGHT_DONE)
             {
                 logger.LogReceive(string(1, rxPacket.getInstruction()));
-                string message = "[Client" + to_string(clientID) + "] FLIGHT_DONE received.";
-                logger.Log(message);
-
-                // Build and send a one-byte ACK packet back to the client before closing the loop
-                message = "[Client" + to_string(clientID) + "] Sending ACK.";
-                logger.Log(message);
+                logger.Log("[Client" + to_string(clientID) + "] FLIGHT_DONE received.");
 
                 char ackData = static_cast<char>(ACK);
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
-
-                // Log data being sent to client
+                logger.Log("[Client" + to_string(clientID) + "] Sending ACK.");
                 logger.LogSend(string(1, txPacket.getInstruction()));
 
-                flightActive = false;   // Exit the loop after ACK is sent
+                flightActive = false;
+                break;
             }
-            else if (rxPacket.getInstruction() == FLIGHT_ACTIVE) // Check the Instruction byte for a FLIGHT_ACTIVE packet
+
+            if (rxPacket.getInstruction() != FLIGHT_ACTIVE)
+                break;
+
+            double x = 0.0;
+            double y = 0.0;
+            double z = 0.0;
+            memcpy(&x, rxPacket.getData(), sizeof(double));
+            memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
+            memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
+
+            const Coordinate currentPosition(x, y, z);
+            logger.LogReceive(string(1, rxPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z));
+            logger.Log("[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.");
+
+            bool collisionDetected = false;
+            int otherClientID = -1;
+            double collisionDistance = 0.0;
+
             {
+                lock_guard<mutex> lock(planesMutex);
 
-                // Log the instruction byte and the 3 double values in a readable format
-                double x, y, z;
-                memcpy(&x, rxPacket.getData(), sizeof(double));
-                memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
-                memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
-
-                // Log data received from client
-                message = string(1, rxPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z);
-                logger.LogReceive(message);
-                string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.";
-                logger.Log(message);
-
-                // Update this client's position in the shared map
+                ClientAversionState& thisPlane = clientAversionStates[clientID];
+                if (thisPlane.hasCurrentPosition)
                 {
-                    lock_guard<mutex> lock(planesMutex);
-                    activePlanes[clientID] = Coordinate(x, y, z);
+                    thisPlane.previousPosition = thisPlane.currentPosition;
+                    thisPlane.hasPreviousPosition = true;
                 }
 
-                // Check distance against all other active planes
-                bool collisionDetected = false;
+                thisPlane.currentPosition = currentPosition;
+                thisPlane.hasCurrentPosition = true;
+                activePlanes[clientID] = currentPosition;
+
+                if (thisPlane.pendingCollisionAlert)
                 {
-                    lock_guard<mutex> lock(planesMutex);
-                    Coordinate thisPlane(x, y, z);
+                    collisionDetected = true;
+                }
+                else if (shouldCheckForCollision(thisPlane))
+                {
                     for (auto& entry : activePlanes)
                     {
-                        if (entry.first == clientID) continue;
-                        if (thisPlane.get_distance(entry.second) < SAFE_DISTANCE)
+                        if (entry.first == clientID)
+                            continue;
+
+                        ClientAversionState& otherPlaneState = clientAversionStates[entry.first];
+                        if (!shouldCheckForCollision(otherPlaneState))
+                            continue;
+
+                        collisionDistance = currentPosition.get_distance(entry.second);
+                        if (collisionDistance < COLLISION_DISTANCE_THRESHOLD)
                         {
-                            string alertMsg = "[Client" + to_string(clientID) + "] COLLISION DETECTED with Client" + to_string(entry.first)
-                                + " | Distance: " + to_string(thisPlane.get_distance(entry.second));
-                            logger.Log(alertMsg);
                             collisionDetected = true;
+                            otherClientID = entry.first;
+                            MarkPairForCollisionAversion(clientID, otherClientID);
                             break;
                         }
                     }
                 }
 
-                if (collisionDetected)
+                if (!thisPlane.pendingCollisionAlert && thisPlane.avoidanceStepsRemaining > 0)
                 {
-                    // Collision Detected: Send COLLISION_ALERT and switch to Alert state
-                    message = "[Client" + to_string(clientID) + "] Sending COLLISION_ALERT.";
-                    logger.Log(message);
-
-                    char alertData = static_cast<char>(COLLISION_ALERT);
-                    txPacket = Packet();
-                    txPacket.SetData(&alertData, 1);
-                    sendPacket(ConnectionSocket, txPacket);
-
-                    // Log data being sent to client
-                    logger.LogSend(string(1, txPacket.getInstruction()));
-
-                    serverState = ServerState::Alert;
-                }
-                else
-                {
-                    // No collision: send ACK and continue normal flight reporting
-                    message = "[Client" + to_string(clientID) + "] Sending ACK.";
-                    logger.Log(message);
-
-                    char ackData = static_cast<char>(ACK);
-                    txPacket = Packet();
-                    txPacket.SetData(&ackData, 1);
-                    sendPacket(ConnectionSocket, txPacket);
-
-                    // Log data being sent to client
-                    logger.LogSend(string(1, txPacket.getInstruction()));
+                    thisPlane.avoidanceStepsRemaining--;
+                    if (thisPlane.avoidanceStepsRemaining == 0)
+                        thisPlane.pairedClientID = -1;
                 }
             }
-            break;
 
-        // Alert state to send Collision Aversion Instructions to Client + Large Data Transfer
-        case ServerState::Alert:
-
-            // receive
-            // Receive one packet from this client. If the connection drops, recvPacket() returns false and we exit the loop
-            if (!recvPacket(ConnectionSocket, rxPacket))
+            if (otherClientID != -1)
             {
-                string message = "[Client" + to_string(clientID) + "] Connection lost during receive.\n\n";
-                logger.Log(message);
-                flightActive = false;   // Exit loop on dropped connection
-                break;
+                logger.Log("[Client" + to_string(clientID) + "] COLLISION DETECTED with Client" + to_string(otherClientID)
+                    + " | Distance: " + to_string(collisionDistance));
             }
 
-            // Log data received from client
-            logger.LogReceive(string(1, rxPacket.getInstruction()));
-
-
-            // act
-            // Check the Instruction byte for a FLIGHT_ALERT_RESPONSE packet
-            if (rxPacket.getInstruction() == FLIGHT_ALERT_RESPONSE)
+            if (collisionDetected)
             {
-                // Send an acknowledgement of packet and then start large data transfer receive function
-                string message = "[Client" + to_string(clientID) + "] Sending FLIGHT_ALERT_RESPONSE 'ACK' Packet. Starting Large Data Transfer process\n\n";
-                logger.Log(message);
-
-                char ackData = static_cast<char>(ACK);
+                char alertData = static_cast<char>(COLLISION_ALERT);
                 txPacket = Packet();
-                txPacket.SetData(&ackData, 1);
+                txPacket.SetData(&alertData, 1);
                 sendPacket(ConnectionSocket, txPacket);
-
-                // Log data being sent to client
+                logger.Log("[Client" + to_string(clientID) + "] Sending COLLISION_ALERT.");
                 logger.LogSend(string(1, txPacket.getInstruction()));
-
-                // Start Large Data Transfer Process
-                std::vector<char> imageData = recvLargeData(ConnectionSocket, clientID);
-
-                // Write to file to verify it arrived intact
-                writeBinaryFile("received_image.png", imageData);
-
-
-
-                // To-Do: Collision Aversion Instructions Logic + Send information to Client                      <------------------
-
-
-
-                // Set Server state to Listening once Collision Aversion instructions are done
-                serverState = ServerState::Listening;
+                serverState = ServerState::Alert;
             }
             else
             {
-                // Send an acknowledgement of packet but don't switch to anything - may want to add another flag for unexpected packet
                 char ackData = static_cast<char>(ACK);
                 txPacket = Packet();
                 txPacket.SetData(&ackData, 1);
                 sendPacket(ConnectionSocket, txPacket);
-
-                // Log data being sent to client
+                logger.Log("[Client" + to_string(clientID) + "] Sending ACK.");
                 logger.LogSend(string(1, txPacket.getInstruction()));
-
-                string message = "[Client" + to_string(clientID) + "] Received unexpected packet, retry start packet.\n\n";
-                logger.Log(message);
             }
             break;
+        }
+
+        case ServerState::Alert:
+        {
+            if (!recvPacket(ConnectionSocket, rxPacket))
+            {
+                logger.Log("[Client" + to_string(clientID) + "] Connection lost during receive.\n\n");
+                flightActive = false;
+                break;
+            }
+
+            logger.LogReceive(string(1, rxPacket.getInstruction()));
+
+            if (rxPacket.getInstruction() == FLIGHT_ALERT_RESPONSE)
+            {
+                char ackData = static_cast<char>(ACK);
+                txPacket = Packet();
+                txPacket.SetData(&ackData, 1);
+                sendPacket(ConnectionSocket, txPacket);
+                logger.Log("[Client" + to_string(clientID) + "] Sending FLIGHT_ALERT_RESPONSE 'ACK' Packet. Starting Large Data Transfer process\n\n");
+                logger.LogSend(string(1, txPacket.getInstruction()));
+
+                vector<char> imageData = recvLargeData(ConnectionSocket, clientID);
+                writeBinaryFile("received_image.png", imageData);
+
+                vector<Coordinate> aversionCoordinates;
+                {
+                    lock_guard<mutex> lock(planesMutex);
+                    aversionCoordinates = clientAversionStates[clientID].pendingAversionCoordinates;
+                }
+
+                if (!aversionCoordinates.empty() && buildCollisionAversionPacket(aversionCoordinates, txPacket))
+                {
+                    logger.Log("[Client" + to_string(clientID) + "] Sending collision aversion instructions.");
+                    if (!sendPacket(ConnectionSocket, txPacket))
+                    {
+                        logger.Log("[Server] Failed to send collision aversion instructions.\n");
+                        flightActive = false;
+                        break;
+                    }
+
+                    logger.LogSend(string(1, txPacket.getInstruction()));
+
+                    Packet confirmationPacket;
+                    if (!recvPacket(ConnectionSocket, confirmationPacket))
+                    {
+                        logger.Log("[Server] No ACK received for collision aversion instructions.\n");
+                        flightActive = false;
+                        break;
+                    }
+
+                    logger.LogReceive(string(1, confirmationPacket.getInstruction()));
+                    if (confirmationPacket.getInstruction() == ACK)
+                    {
+                        lock_guard<mutex> lock(planesMutex);
+                        clientAversionStates[clientID].pendingCollisionAlert = false;
+                        clientAversionStates[clientID].pendingAversionCoordinates.clear();
+                    }
+                }
+
+                break;
+            }
+
+            if (rxPacket.getInstruction() == FLIGHT_ACTIVE)
+            {
+                {
+                    double x = 0.0;
+                    double y = 0.0;
+                    double z = 0.0;
+                    memcpy(&x, rxPacket.getData(), sizeof(double));
+                    memcpy(&y, rxPacket.getData() + sizeof(double), sizeof(double));
+                    memcpy(&z, rxPacket.getData() + sizeof(double) * 2, sizeof(double));
+
+                    lock_guard<mutex> lock(planesMutex);
+                    ClientAversionState& thisPlane = clientAversionStates[clientID];
+                    if (thisPlane.hasCurrentPosition)
+                    {
+                        thisPlane.previousPosition = thisPlane.currentPosition;
+                        thisPlane.hasPreviousPosition = true;
+                    }
+
+                    thisPlane.currentPosition = Coordinate(x, y, z);
+                    thisPlane.hasCurrentPosition = true;
+                    activePlanes[clientID] = thisPlane.currentPosition;
+
+                    if (thisPlane.avoidanceStepsRemaining > 0)
+                    {
+                        thisPlane.avoidanceStepsRemaining--;
+                        if (thisPlane.avoidanceStepsRemaining == 0)
+                            thisPlane.pairedClientID = -1;
+                    }
+                }
+
+                char ackData = static_cast<char>(ACK);
+                txPacket = Packet();
+                txPacket.SetData(&ackData, 1);
+                sendPacket(ConnectionSocket, txPacket);
+                logger.Log("[Client" + to_string(clientID) + "] Sending ACK for collision aversion step.");
+                logger.LogSend(string(1, txPacket.getInstruction()));
+
+                {
+                    lock_guard<mutex> lock(planesMutex);
+                    if (clientAversionStates[clientID].avoidanceStepsRemaining == 0)
+                        serverState = ServerState::Listening;
+                }
+
+                break;
+            }
+
+            char ackData = static_cast<char>(ACK);
+            txPacket = Packet();
+            txPacket.SetData(&ackData, 1);
+            sendPacket(ConnectionSocket, txPacket);
+            logger.LogSend(string(1, txPacket.getInstruction()));
+            logger.Log("[Client" + to_string(clientID) + "] Received unexpected packet while in Alert.\n\n");
+            break;
+        }
+
         default:
             break;
         }
     }
 
-    // Remove client from the shared position map
     {
         lock_guard<mutex> lock(planesMutex);
         activePlanes.erase(clientID);
+        clientAversionStates.erase(clientID);
     }
 
-    // Clean up this client's socket when its loop exits
     closesocket(ConnectionSocket);
-    message = "[Client" + to_string(clientID) + "] Disconnected\n\n";
-    logger.Log(message);
+    logger.Log("[Client" + to_string(clientID) + "] Disconnected\n\n");
 }
 
 vector<char> recvLargeData(SOCKET sock, int clientID)
 {
-    // First packet contains total expected size
     Packet startPacket;
     recvPacket(sock, startPacket);
-
-    // Log data received from client
     logger.LogReceive(string(1, startPacket.getInstruction()));
 
     int totalSize = 0;
     memcpy(&totalSize, startPacket.getData(), 4);
+
     vector<char> buffer;
-    buffer.reserve(totalSize); // reserving space for size of large data transfer
+    buffer.reserve(totalSize);
+    logger.Log("[Client" + to_string(clientID) + "] Received DATA_START packet, receiving large data transfer chunks...\n\n");
 
-    string message = "[Client" + to_string(clientID) + "] Received DATA_START packet, receiving large data transfer chunks...\n\n";
-    logger.Log(message);
-
-    while ((int)buffer.size() < totalSize)
+    while (static_cast<int>(buffer.size()) < totalSize)
     {
         Packet chunk;
         recvPacket(sock, chunk);
-
-        // Log data received from client
         logger.LogReceive(string(1, chunk.getInstruction()));
 
-        // append chunk data to buffer
         char* chunkData = chunk.getData();
         int chunkLen = chunk.getBodyLength();
         buffer.insert(buffer.end(), chunkData, chunkData + chunkLen);
     }
 
-    message = "[Client" + to_string(clientID) + "] Received all large data transfer chunks!\n\n";
-    logger.Log(message);
+    logger.Log("[Client" + to_string(clientID) + "] Received all large data transfer chunks!\n\n");
     return buffer;
 }
 
@@ -370,4 +492,45 @@ bool writeBinaryFile(const string& filePath, const vector<char>& data)
         outFile.write(data.data(), static_cast<streamsize>(data.size()));
 
     return outFile.good();
+}
+
+vector<Coordinate> buildCollisionAversionPath(const Coordinate& previousPosition, const Coordinate& currentPosition, const Coordinate& otherPosition, int lateralDirectionSign)
+{
+    vector<Coordinate> aversionCoordinates;
+    aversionCoordinates.reserve(COLLISION_AVERSION_COORDINATE_COUNT);
+
+    const Vector3 current = ToVector(currentPosition);
+    const Vector3 forward = BuildForwardVector(previousPosition, currentPosition, otherPosition);
+    const Vector3 lateral = Scale(BuildLateralVector(previousPosition, currentPosition, otherPosition), static_cast<double>(lateralDirectionSign));
+    const array<double, COLLISION_AVERSION_COORDINATE_COUNT> lateralMultipliers = { 1.0, 1.5, 1.5, 0.75, 0.0 };
+    const double lateralOffsetDistance = COLLISION_DISTANCE_THRESHOLD * 1.25;
+
+    for (int step = 0; step < COLLISION_AVERSION_COORDINATE_COUNT; ++step)
+    {
+        const Vector3 projectedTrackPoint = Add(current, Scale(forward, static_cast<double>(step + 1)));
+        const Vector3 adjustedPoint = Add(projectedTrackPoint, Scale(lateral, lateralOffsetDistance * lateralMultipliers[step]));
+        aversionCoordinates.push_back(ToCoordinate(adjustedPoint));
+    }
+
+    return aversionCoordinates;
+}
+
+bool buildCollisionAversionPacket(const vector<Coordinate>& coordinates, Packet& outPacket)
+{
+    if (coordinates.size() != COLLISION_AVERSION_COORDINATE_COUNT)
+        return false;
+
+    vector<char> payload(1 + static_cast<int>(coordinates.size() * sizeof(double) * 3));
+    payload[0] = static_cast<char>(COLLISION_AVERSION_INSTRUCTIONS);
+
+    char* destination = payload.data() + 1;
+    for (const Coordinate& coordinate : coordinates)
+    {
+        coordinate.copy_to_Buffer(destination);
+        destination += sizeof(double) * 3;
+    }
+
+    outPacket = Packet();
+    outPacket.SetData(payload.data(), static_cast<int>(payload.size()));
+    return true;
 }

@@ -491,6 +491,38 @@ namespace UnitTests
 
         TEST_METHOD(UT_SVR_003_CollisionDetection)
         {
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+                activePlanes[2] = Coordinate(12.0, 10.0, 10.0);
+                ClientAversionState otherPlaneState = {};
+                otherPlaneState.currentPosition = Coordinate(12.0, 10.0, 10.0);
+                otherPlaneState.hasCurrentPosition = true;
+                clientAversionStates[2] = otherPlaneState;
+            }
+
+            MockSession session = MockSession::CreateConnected();
+            thread serverThread(handleClient, session.server.connectionSocket, 1);
+            session.server.connectionSocket = INVALID_SOCKET;
+
+            Packet flightActive = BuildFlightActivePacket(10.0, 10.0, 10.0);
+            Assert::IsTrue(session.client.SendPacket(flightActive));
+
+            Packet response;
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_ALERT), static_cast<int>(response.getInstruction()));
+
+            session.client.Close();
+            serverThread.join();
+
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+            }
+
+            session.server.Close();
         }
 
         TEST_METHOD(UT_SVR_004_ACK_On_FLIGHT_ACTIVE)
@@ -517,6 +549,72 @@ namespace UnitTests
 
         TEST_METHOD(UT_SVR_005_COLLISION_ALERT_Response)
         {
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+                activePlanes[2] = Coordinate(11.0, 20.0, 30.0);
+                ClientAversionState otherPlaneState = {};
+                otherPlaneState.currentPosition = Coordinate(11.0, 20.0, 30.0);
+                otherPlaneState.hasCurrentPosition = true;
+                clientAversionStates[2] = otherPlaneState;
+            }
+
+            MockSession session = MockSession::CreateConnected();
+            thread serverThread(handleClient, session.server.connectionSocket, 1);
+            session.server.connectionSocket = INVALID_SOCKET;
+
+            Packet flightActive = BuildFlightActivePacket(10.0, 20.0, 30.0);
+            Assert::IsTrue(session.client.SendPacket(flightActive));
+
+            Packet response;
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_ALERT), static_cast<int>(response.getInstruction()));
+
+            Packet alertResponse = BuildInstructionOnlyPacket(FLIGHT_ALERT_RESPONSE);
+            Assert::IsTrue(session.client.SendPacket(alertResponse));
+
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            vector<char> payload = BuildTestBytes(256);
+            Assert::IsTrue(session.client.SendLargePayload(payload));
+
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_AVERSION_INSTRUCTIONS), static_cast<int>(response.getInstruction()));
+
+            vector<Coordinate> aversionCoordinates;
+            Assert::IsTrue(tryDeserializeCollisionAversionCoordinates(response, aversionCoordinates));
+            Assert::AreEqual(static_cast<size_t>(COLLISION_AVERSION_COORDINATE_COUNT), aversionCoordinates.size());
+
+            Packet ack = BuildInstructionOnlyPacket(ACK);
+            Assert::IsTrue(session.client.SendPacket(ack));
+
+            for (const Coordinate& coordinate : aversionCoordinates)
+            {
+                Packet divertedStep = BuildFlightActivePacket(
+                    coordinate.get_X(),
+                    coordinate.get_Y(),
+                    coordinate.get_Z());
+                Assert::IsTrue(session.client.SendPacket(divertedStep));
+                Assert::IsTrue(session.client.ReceivePacket(response));
+                Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+            }
+
+            Packet done = BuildInstructionOnlyPacket(FLIGHT_DONE);
+            Assert::IsTrue(session.client.SendPacket(done));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            serverThread.join();
+
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+            }
+
+            session.Close();
         }
 
         TEST_METHOD(UT_SVR_006_ACK_On_FLIGHT_DONE)
@@ -757,6 +855,72 @@ namespace UnitTests
 
         TEST_METHOD(IT_004_CollisionAlertFullFlow)
         {
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+                activePlanes[2] = Coordinate(15.0, 25.0, 35.0);
+                ClientAversionState otherPlaneState = {};
+                otherPlaneState.currentPosition = Coordinate(15.0, 25.0, 35.0);
+                otherPlaneState.hasCurrentPosition = true;
+                clientAversionStates[2] = otherPlaneState;
+            }
+
+            MockSession session = MockSession::CreateConnected();
+            thread serverThread(handleClient, session.server.connectionSocket, 1);
+            session.server.connectionSocket = INVALID_SOCKET;
+
+            Packet active = BuildFlightActivePacket(14.0, 25.0, 35.0);
+            Assert::IsTrue(session.client.SendPacket(active));
+
+            Packet response;
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_ALERT), static_cast<int>(response.getInstruction()));
+
+            Packet alertResponse = BuildInstructionOnlyPacket(FLIGHT_ALERT_RESPONSE);
+            Assert::IsTrue(session.client.SendPacket(alertResponse));
+
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            vector<char> payload = BuildTestBytes(600);
+            Assert::IsTrue(session.client.SendLargePayload(payload));
+
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_AVERSION_INSTRUCTIONS), static_cast<int>(response.getInstruction()));
+
+            vector<Coordinate> aversionCoordinates;
+            Assert::IsTrue(tryDeserializeCollisionAversionCoordinates(response, aversionCoordinates));
+            Assert::AreEqual(static_cast<size_t>(COLLISION_AVERSION_COORDINATE_COUNT), aversionCoordinates.size());
+
+            Packet ack = BuildInstructionOnlyPacket(ACK);
+            Assert::IsTrue(session.client.SendPacket(ack));
+
+            for (const Coordinate& coordinate : aversionCoordinates)
+            {
+                Packet divertedStep = BuildFlightActivePacket(
+                    coordinate.get_X(),
+                    coordinate.get_Y(),
+                    coordinate.get_Z());
+                Assert::IsTrue(session.client.SendPacket(divertedStep));
+                Assert::IsTrue(session.client.ReceivePacket(response));
+                Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+            }
+
+            Packet done = BuildInstructionOnlyPacket(FLIGHT_DONE);
+            Assert::IsTrue(session.client.SendPacket(done));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            serverThread.join();
+
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+            }
+
+            session.Close();
         }
 
         TEST_METHOD(IT_005_LargeDataTransferIntegrity)
@@ -917,6 +1081,81 @@ namespace UnitTests
 
         TEST_METHOD(ST_003_StateMachineFullCycle)
         {
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+                activePlanes[2] = Coordinate(51.0, 60.0, 70.0);
+                ClientAversionState otherPlaneState = {};
+                otherPlaneState.currentPosition = Coordinate(51.0, 60.0, 70.0);
+                otherPlaneState.hasCurrentPosition = true;
+                clientAversionStates[2] = otherPlaneState;
+            }
+
+            MockSession session = MockSession::CreateConnected();
+            thread serverThread(handleClient, session.server.connectionSocket, 1);
+            session.server.connectionSocket = INVALID_SOCKET;
+
+            Packet response;
+
+            Packet initialActive = BuildFlightActivePacket(50.0, 60.0, 70.0);
+            Assert::IsTrue(session.client.SendPacket(initialActive));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_ALERT), static_cast<int>(response.getInstruction()));
+
+            Packet alertResponse = BuildInstructionOnlyPacket(FLIGHT_ALERT_RESPONSE);
+            Assert::IsTrue(session.client.SendPacket(alertResponse));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            vector<char> payload = BuildTestBytes(300);
+            Assert::IsTrue(session.client.SendLargePayload(payload));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(COLLISION_AVERSION_INSTRUCTIONS), static_cast<int>(response.getInstruction()));
+
+            vector<Coordinate> aversionCoordinates;
+            Assert::IsTrue(tryDeserializeCollisionAversionCoordinates(response, aversionCoordinates));
+            Assert::AreEqual(static_cast<size_t>(COLLISION_AVERSION_COORDINATE_COUNT), aversionCoordinates.size());
+
+            Packet instructionsAck = BuildInstructionOnlyPacket(ACK);
+            Assert::IsTrue(session.client.SendPacket(instructionsAck));
+
+            for (const Coordinate& coordinate : aversionCoordinates)
+            {
+                Packet divertedStep = BuildFlightActivePacket(
+                    coordinate.get_X(),
+                    coordinate.get_Y(),
+                    coordinate.get_Z());
+                Assert::IsTrue(session.client.SendPacket(divertedStep));
+                Assert::IsTrue(session.client.ReceivePacket(response));
+                Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+            }
+
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.erase(2);
+                clientAversionStates.erase(2);
+            }
+
+            Packet resumedFlight = BuildFlightActivePacket(56.0, 60.0, 70.0);
+            Assert::IsTrue(session.client.SendPacket(resumedFlight));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            Packet done = BuildInstructionOnlyPacket(FLIGHT_DONE);
+            Assert::IsTrue(session.client.SendPacket(done));
+            Assert::IsTrue(session.client.ReceivePacket(response));
+            Assert::AreEqual(static_cast<int>(ACK), static_cast<int>(response.getInstruction()));
+
+            serverThread.join();
+
+            {
+                lock_guard<mutex> lock(planesMutex);
+                activePlanes.clear();
+                clientAversionStates.clear();
+            }
+
+            session.Close();
         }
 
         TEST_METHOD(ST_004_TCPIP_Communication)

@@ -225,3 +225,32 @@ vector<vector<char>> splitLargeDataChunks(const char* data, int totalSize, int m
 
     return chunks;
 }
+
+bool tryDeserializeCollisionAversionCoordinates(const Packet& packet, vector<Coordinate>& outCoordinates)
+{
+    const int expectedBodyLength = static_cast<int>(sizeof(double) * 3 * COLLISION_AVERSION_COORDINATE_COUNT);
+    if (packet.getInstruction() != COLLISION_AVERSION_INSTRUCTIONS)
+        return false;
+
+    if (packet.getBodyLength() != expectedBodyLength || packet.getData() == nullptr)
+        return false;
+
+    outCoordinates.clear();
+    outCoordinates.reserve(COLLISION_AVERSION_COORDINATE_COUNT);
+
+    const char* buffer = packet.getData();
+    for (int index = 0; index < COLLISION_AVERSION_COORDINATE_COUNT; ++index)
+    {
+        Coordinate coordinate;
+        coordinate.copy_from_Buffer(const_cast<char*>(buffer + (sizeof(double) * 3 * index)));
+        outCoordinates.push_back(coordinate);
+    }
+
+    return true;
+}
+
+size_t advanceFlightPathIndex(size_t currentIndex, size_t skipCount, size_t totalCoordinates)
+{
+    const size_t advancedIndex = currentIndex + skipCount;
+    return advancedIndex < totalCoordinates ? advancedIndex : totalCoordinates;
+}
