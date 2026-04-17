@@ -5,6 +5,13 @@ const string START_PASSKEY = "Grp8_StartGroundControl";
 atomic<bool> serverRunning(false);
 Logger logger;
 
+// Shared map of clientID with last known position and its mutex - declared extrern in ServerHelpers.h
+map<int, Coordinate> activePlanes;
+mutex planesMutex;
+
+// Minimum safe distance between any two planes
+const double SAFE_DISTANCE = 5.0;
+
 // Input monitor thread function — runs concurrently with the accept loop.
 // Waits for the user to type "x" then sets serverRunning to false, which causes the accept loop to exit on its next iteration.
 // Also calls closesocket() on ServerSocket to unblock the blocking accept() call.
@@ -179,38 +186,63 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 string message = "[Client" + to_string(clientID) + "] FLIGHT_ACTIVE received.";
                 logger.Log(message);
 
-                // act
-                // To-Do - Create Logic for determining if a collision is imminent            <-------------
+                // Update this client's position in the shared map
+                {
+                    lock_guard<mutex> lock(planesMutex);
+                    activePlanes[clientID] = Coordinate(x, y, z);
+                }
 
-                // If(collisionDetected)
+                // Check distance against all other active planes
+                bool collisionDetected = false;
+                {
+                    lock_guard<mutex> lock(planesMutex);
+                    Coordinate thisPlane(x, y, z);
+                    for (auto& entry : activePlanes)
+                    {
+                        if (entry.first == clientID) continue;
+                        if (thisPlane.get_distance(entry.second) < SAFE_DISTANCE)
+                        {
+                            string alertMsg = "[Client" + to_string(clientID) + "] COLLISION DETECTED with Client" + to_string(entry.first)
+                                + " | Distance: " + to_string(thisPlane.get_distance(entry.second));
+                            logger.Log(alertMsg);
+                            collisionDetected = true;
+                            break;
+                        }
+                    }
+                }
 
-                // Build and send a COLLISION_ALERT packet back to the client if collision is detected and switch state to Alert
-                /* char ackData = static_cast<char>(COLLISION_ALERT);
-                txPacket = Packet();
-                txPacket.SetData(&ackData, 1);
-                sendPacket(ConnectionSocket, txPacket);
+                if (collisionDetected)
+                {
+                    // Collision Detected: Send COLLISION_ALERT and switch to Alert state
+                    message = "[Client" + to_string(clientID) + "] Sending COLLISION_ALERT.";
+                    logger.Log(message);
 
-                // Log data being sent to client
-                Logger::LogSend(string(1, txPacket.getInstruction()));
+                    char alertData = static_cast<char>(COLLISION_ALERT);
+                    txPacket = Packet();
+                    txPacket.SetData(&alertData, 1);
+                    sendPacket(ConnectionSocket, txPacket);
 
-                serverState = ServerState::Alert;*/
+                    // Log data being sent to client
+                    logger.LogSend(string(1, txPacket.getInstruction()));
 
-                // else
+                    serverState = ServerState::Alert;
+                }
+                else
+                {
+                    // No collision: send ACK and continue normal flight reporting
+                    message = "[Client" + to_string(clientID) + "] Sending ACK.";
+                    logger.Log(message);
 
-                // Build and send a one-byte ACK packet back to the client if no collision detected
-                message = "[Client" + to_string(clientID) + "] Sending ACK.";
-                logger.Log(message);
+                    char ackData = static_cast<char>(ACK);
+                    txPacket = Packet();
+                    txPacket.SetData(&ackData, 1);
+                    sendPacket(ConnectionSocket, txPacket);
 
-                char ackData = static_cast<char>(ACK);
-                txPacket = Packet();
-                txPacket.SetData(&ackData, 1);
-                sendPacket(ConnectionSocket, txPacket);
-
-                // Log data being sent to client
-                logger.LogSend(string(1, txPacket.getInstruction()));
+                    // Log data being sent to client
+                    logger.LogSend(string(1, txPacket.getInstruction()));
+                }
             }
             break;
-
 
         // Alert state to send Collision Aversion Instructions to Client + Large Data Transfer
         case ServerState::Alert:
@@ -280,6 +312,12 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
         default:
             break;
         }
+    }
+
+    // Remove client from the shared position map
+    {
+        lock_guard<mutex> lock(planesMutex);
+        activePlanes.erase(clientID);
     }
 
     // Clean up this client's socket when its loop exits
