@@ -6,6 +6,9 @@
 constexpr unsigned short GROUND_CONTROL_PORT = 27000;
 constexpr int FLIGHT_TRANSMISSION_INTERVAL_SECONDS = 10;
 constexpr const char* SERVER_START_PROMPT = "[Server] Enter passkey to start Ground Control: ";
+constexpr int COLLISION_AVERSION_COORDINATE_COUNT = 5;
+constexpr int COLLISION_AVERSION_SKIP_COUNT = 5;
+constexpr double COLLISION_DISTANCE_THRESHOLD = 5.0;
 
 // Packet Flag Definitions
 constexpr unsigned char FLIGHT_DONE = 0x00;
@@ -15,3 +18,4 @@ constexpr unsigned char FLIGHT_ALERT_RESPONSE = 0x33;
 constexpr unsigned char ACK = 0x44;
 constexpr unsigned char DATA_START = 0x55;
 constexpr unsigned char DATA_CHUNK = 0x66;
+constexpr unsigned char COLLISION_AVERSION_INSTRUCTIONS = 0x88;

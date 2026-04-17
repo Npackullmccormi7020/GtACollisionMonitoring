@@ -5,7 +5,6 @@
 #include <fstream>
 
 using namespace std;
-using std::ifstream;
 
 int main(int argc, char* argv[])
 {   
@@ -52,6 +51,10 @@ int main(int argc, char* argv[])
 
     ClientState clientState = ClientState::Flying;
     Coordinate cords = Coordinate();
+    vector<Coordinate> flightPathCoordinates;
+    vector<Coordinate> aversionCoordinates;
+    size_t flightCoordinateIndex = 0;
+    size_t aversionCoordinateIndex = 0;
 
     // ================================================
     // =============== Main Client Loop ===============
@@ -64,12 +67,9 @@ int main(int argc, char* argv[])
     // flightActive controls the while loop - stays true until the FLIGHT_DONE handshake completes
     bool flightActive = true;
 
-    // Open the flight path file before the loop begins
-    // Each line contains one X,Y,Z coordinate set sent every 10 seconds
-    ifstream flightFile(flightPathFile);
-    if (!flightFile.is_open())
+    if (!loadFlightPathCoordinates(flightPathFile, flightPathCoordinates))
     {
-        logger.Log("[Client] ERROR: Failed to open file: " + flightPathFile);
+        logger.Log("[Client] ERROR: Failed to load file: " + flightPathFile);
         flightActive = false;
     }
     else
@@ -93,17 +93,11 @@ int main(int argc, char* argv[])
             // This will be the file reading and sending in 10s intervals                    <--------------
             this_thread::sleep_for(chrono::seconds(FLIGHT_TRANSMISSION_INTERVAL_SECONDS));
 
-            // Read the next line from the flight path file
-            string line;
-            bool foundLine = false;
-
-            // Loop only while we read a line AND it's invalid (empty/comment)
-            while (getline(flightFile, line) && (line.empty() || line[0] == '#')) 
-            {// do nothing - just skip invalid lines
+            if (flightCoordinateIndex < flightPathCoordinates.size())
+            {
+                cords = flightPathCoordinates[flightCoordinateIndex++];
             }
-
-            // If we failed to read a valid line, we're at EOF
-            if (!flightFile)
+            else
             {
                 logger.Log("[Client] EOF reached. Sending FLIGHT_DONE.");
 
@@ -127,12 +121,6 @@ int main(int argc, char* argv[])
                     flightActive = false;
                 }
 
-                break;
-            }
-
-            if (!tryParseFlightPathLine(line, cords))
-            {
-                logger.Log("[Client] Malformed line in flightpath.txt: " + line + " - skipping.");
                 break;
             }
 
@@ -199,59 +187,132 @@ int main(int argc, char* argv[])
         // Collision Aversion State based on Server Instructions + Large Data Transfer
         case ClientState::DivertCourse:
         {
-            // Send a FLIGHT_ALERT_RESPONSE packet (Large Data Transfer)
-            // Server Responds with ACK packet and starts the large data transfer loop until finished and switches to Flying state
-            string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.";
-            logger.Log(message);
-            if (!sendFlightAlertResponsePacket(ClientSocket))
+            if (aversionCoordinates.empty())
             {
-                logger.Log("[Client] Failed to send FLIGHT_ALERT_RESPONSE packet.\n\n");
-                flightActive = false;   // Exit even if send failed
-                break;
-            }
-
-            char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
-            txPacket = Packet();
-            txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
-
-            // Log data being sent to server
-            logger.LogSend(string(1, txPacket.getInstruction()));
-            logger.Log("[Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...\n");
-
-            // Wait for the server's ACK confirming FLIGHT_ALERT_RESPONSE was received.
-            if (!recvPacket(ClientSocket, rxPacket))
-            {
-                logger.Log("[Client] No ACK received.\n\n");
-                flightActive = false;   //Exit - server may have closed
-                break;
-            }
-
-            // Log data received
-            logger.LogReceive(string(1, rxPacket.getInstruction()));
-
-            // Confirm the ACK
-            if (rxPacket.getInstruction() == ACK)
-            {
-                logger.Log("[Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...\n");
-
-                // Read image file into a byte buffer
-                // check if image exists before using
-                vector<char> imageBytes;
-                if (!loadBinaryFile("Images/Live_Feed1.png", imageBytes)) {
-                    logger.Log("[Client] Failed to open image file.\n");
+                // Send a FLIGHT_ALERT_RESPONSE packet once to start the collision-aversion workflow
+                string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.";
+                logger.Log(message);
+                if (!sendFlightAlertResponsePacket(ClientSocket))
+                {
+                    logger.Log("[Client] Failed to send FLIGHT_ALERT_RESPONSE packet.\n\n");
+                    flightActive = false;
                     break;
                 }
 
-                // Start Large Data Transfer Process
-                sendLargeData(ClientSocket, imageBytes.data(), static_cast<int>(imageBytes.size()));
+                char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
+                txPacket = Packet();
+                txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
 
+                logger.LogSend(string(1, txPacket.getInstruction()));
+                logger.Log("[Client] FLIGHT_ALERT_RESPONSE sent. Waiting for ACK...\n");
 
+                if (!recvPacket(ClientSocket, rxPacket))
+                {
+                    logger.Log("[Client] No ACK received.\n\n");
+                    flightActive = false;
+                    break;
+                }
 
-                // To-Do: Collision Aversion Instructions Logic + Send Ack Packet for confirmation of received instructions         <----------------
-                
+                logger.LogReceive(string(1, rxPacket.getInstruction()));
 
+                if (rxPacket.getInstruction() == ACK)
+                {
+                    logger.Log("[Client] FLIGHT_ALERT_RESPONSE 'ACK' received. Starting Large Data Transfer process...\n");
 
-                clientState = ClientState::Flying;  // resume normal flight reporting
+                    vector<char> imageBytes;
+                    if (!loadBinaryFile("Images/Live_Feed1.png", imageBytes)) {
+                        logger.Log("[Client] Failed to open image file.\n");
+                        break;
+                    }
+
+                    sendLargeData(ClientSocket, imageBytes.data(), static_cast<int>(imageBytes.size()));
+
+                    Packet instructionsPacket;
+                    if (!recvPacket(ClientSocket, instructionsPacket))
+                    {
+                        logger.Log("[Client] Failed to receive collision aversion instructions.\n");
+                        flightActive = false;
+                        break;
+                    }
+
+                    logger.LogReceive(string(1, instructionsPacket.getInstruction()));
+
+                    vector<Coordinate> receivedCoordinates;
+                    if (!tryDeserializeCollisionAversionCoordinates(instructionsPacket, receivedCoordinates))
+                    {
+                        logger.Log("[Client] Invalid collision aversion instructions received.\n");
+                        flightActive = false;
+                        break;
+                    }
+
+                    char instructionAck = static_cast<char>(ACK);
+                    txPacket = Packet();
+                    txPacket.SetData(&instructionAck, 1);
+                    if (!sendPacket(ClientSocket, txPacket))
+                    {
+                        logger.Log("[Client] Failed to ACK collision aversion instructions.\n");
+                        flightActive = false;
+                        break;
+                    }
+
+                    logger.LogSend(string(1, txPacket.getInstruction()));
+
+                    aversionCoordinates = receivedCoordinates;
+                    aversionCoordinateIndex = 0;
+                    flightCoordinateIndex = advanceFlightPathIndex(
+                        flightCoordinateIndex,
+                        COLLISION_AVERSION_SKIP_COUNT,
+                        flightPathCoordinates.size());
+                    logger.Log("[Client] Collision aversion instructions received. Executing 5-step reroute.");
+                }
+            }
+
+            if (aversionCoordinateIndex < aversionCoordinates.size())
+            {
+                this_thread::sleep_for(chrono::seconds(FLIGHT_TRANSMISSION_INTERVAL_SECONDS));
+
+                cords = aversionCoordinates[aversionCoordinateIndex++];
+                const double x = cords.get_X();
+                const double y = cords.get_Y();
+                const double z = cords.get_Z();
+
+                logger.Log("[Client] Sending collision aversion coordinate.");
+
+                char* flightDataNew = new char[1 + sizeof(double) * 3];
+                flightDataNew[0] = static_cast<char>(FLIGHT_ACTIVE);
+                cords.copy_to_Buffer(flightDataNew + 1);
+                txPacket = Packet();
+                txPacket.SetData(flightDataNew, 1 + sizeof(double) * 3);
+
+                if (!sendPacket(ClientSocket, txPacket))
+                {
+                    delete[] flightDataNew;
+                    logger.Log("[Client] Send failed during collision aversion. Disconnecting.\n\n");
+                    flightActive = false;
+                    break;
+                }
+
+                logger.LogSend(string(1, txPacket.getInstruction()) + " | " + to_string(x) + ", " + to_string(y) + ", " + to_string(z));
+                delete[] flightDataNew;
+
+                if (!recvPacket(ClientSocket, rxPacket))
+                {
+                    logger.Log("[Client] Receive failed during collision aversion. Disconnecting.\n\n");
+                    flightActive = false;
+                    break;
+                }
+
+                logger.LogReceive(string(1, rxPacket.getInstruction()));
+                if (rxPacket.getInstruction() == ACK)
+                    logger.Log("[Client] ACK received from server for collision aversion step.\n");
+
+                if (aversionCoordinateIndex == aversionCoordinates.size())
+                {
+                    aversionCoordinates.clear();
+                    aversionCoordinateIndex = 0;
+                    clientState = ClientState::Flying;
+                    logger.Log("[Client] Collision aversion complete. Returning to Flying state.");
+                }
             }
             break;
         }
