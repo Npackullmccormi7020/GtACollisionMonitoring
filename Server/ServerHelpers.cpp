@@ -1,11 +1,11 @@
 #include "ServerHelpers.h"
 
-// Variable definitions — owned here, declared extern in ServerHelpers.h
+// Variable definitions ï¿½ owned here, declared extern in ServerHelpers.h
 const string START_PASSKEY = "Grp8_StartGroundControl";
 atomic<bool> serverRunning(false);
 Logger logger;
 
-// Input monitor thread function — runs concurrently with the accept loop.
+// Input monitor thread function ï¿½ runs concurrently with the accept loop.
 // Waits for the user to type "x" then sets serverRunning to false, which causes the accept loop to exit on its next iteration.
 // Also calls closesocket() on ServerSocket to unblock the blocking accept() call.
 void inputMonitor(SOCKET ServerSocket)
@@ -42,7 +42,7 @@ bool recvPacket(SOCKET sock, Packet& outPacket)
         totalReceived += received;
     }
 
-    // The 4th header byte is BodyLength — read that many data bytes
+    // The 4th header byte is BodyLength ï¿½ read that many data bytes
     unsigned char bodyLength = static_cast<unsigned char>(headerBuf[3]);
 
     // Allocate a full packet buffer: header + body
@@ -102,7 +102,7 @@ bool sendPacket(SOCKET sock, Packet& packet)
     return true;
 }
 
-// Per-client handler function — each accepted connection runs this on its own thread.
+// Per-client handler function ï¿½ each accepted connection runs this on its own thread.
 // Essentially acting as the main loop that's isolated per client.
 void handleClient(SOCKET ConnectionSocket, int clientID)
 {
@@ -111,10 +111,10 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
 
     ServerState serverState = ServerState::Listening;
 
-    // flightActive controls the while loop — stays true until the client sends a FLIGHT_DONE packet
+    // flightActive controls the while loop ï¿½ stays true until the client sends a FLIGHT_DONE packet
     bool flightActive = true;
 
-    // Packet objects reused each iteration — one for receiving, one for sending
+    // Packet objects reused each iteration ï¿½ one for receiving, one for sending
     Packet rxPacket;
     Packet txPacket;
 
@@ -249,9 +249,7 @@ void handleClient(SOCKET ConnectionSocket, int clientID)
                 std::vector<char> imageData = recvLargeData(ConnectionSocket, clientID);
 
                 // Write to file to verify it arrived intact
-                std::ofstream outFile("received_image.png", std::ios::binary);
-                outFile.write(imageData.data(), imageData.size());
-                outFile.close();
+                writeBinaryFile("received_image.png", imageData);
 
 
 
@@ -322,4 +320,16 @@ vector<char> recvLargeData(SOCKET sock, int clientID)
     message = "[Client" + to_string(clientID) + "] Received all large data transfer chunks!\n\n";
     logger.Log(message);
     return buffer;
+}
+
+bool writeBinaryFile(const string& filePath, const vector<char>& data)
+{
+    ofstream outFile(filePath, ios::binary | ios::trunc);
+    if (!outFile.is_open())
+        return false;
+
+    if (!data.empty())
+        outFile.write(data.data(), static_cast<streamsize>(data.size()));
+
+    return outFile.good();
 }

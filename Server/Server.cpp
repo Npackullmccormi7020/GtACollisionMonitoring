@@ -24,7 +24,7 @@ int main()
 	sockaddr_in SvrAddr;
 	SvrAddr.sin_family = AF_INET;
 	SvrAddr.sin_addr.s_addr = INADDR_ANY;
-	SvrAddr.sin_port = htons(27000);
+	SvrAddr.sin_port = htons(GROUND_CONTROL_PORT);
 	if (bind(ServerSocket, (struct sockaddr*)&SvrAddr, sizeof(SvrAddr)) == SOCKET_ERROR)
 	{
 		closesocket(ServerSocket);
@@ -45,7 +45,7 @@ int main()
 	// Passkey gate — prompt the user for the start passkey before the server begins accepting connections. Loops until correct key is entered.
 	{
 		string userInput;
-		logger.Log("[Server] Enter passkey to start Ground Control: ");
+		logger.Log(SERVER_START_PROMPT);
 		while (true)
 		{
 			cin >> userInput;

@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     //Connect socket to specified server
     sockaddr_in SvrAddr;
     SvrAddr.sin_family = AF_INET;						//Address family type internet
-    SvrAddr.sin_port = htons(27000);					//port (host to network conversion)
+    SvrAddr.sin_port = htons(GROUND_CONTROL_PORT);		//port (host to network conversion)
     SvrAddr.sin_addr.s_addr = inet_addr("127.0.0.1");	//IP address
     if ((connect(ClientSocket, (struct sockaddr*)&SvrAddr, sizeof(SvrAddr))) == SOCKET_ERROR) {
         closesocket(ClientSocket);
@@ -57,11 +57,11 @@ int main(int argc, char* argv[])
     // =============== Main Client Loop ===============
     // ================================================
     
-    // Packet objects reused each iteration — one for sending, one for receiving
+    // Packet objects reused each iteration - one for sending, one for receiving
     Packet txPacket;
     Packet rxPacket;
 
-    // flightActive controls the while loop — stays true until the FLIGHT_DONE handshake completes
+    // flightActive controls the while loop - stays true until the FLIGHT_DONE handshake completes
     bool flightActive = true;
 
     // Open the flight path file before the loop begins
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
             // Build and send a data packet to the server
             
             // This will be the file reading and sending in 10s intervals                    <--------------
-            this_thread::sleep_for(chrono::seconds(10));
+            this_thread::sleep_for(chrono::seconds(FLIGHT_TRANSMISSION_INTERVAL_SECONDS));
 
             // Read the next line from the flight path file
             string line;
@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
 
             // Loop only while we read a line AND it's invalid (empty/comment)
             while (getline(flightFile, line) && (line.empty() || line[0] == '#')) 
-            {// do nothing — just skip invalid lines
+            {// do nothing - just skip invalid lines
             }
 
             // If we failed to read a valid line, we're at EOF
@@ -130,33 +130,15 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            // Parse the X,Y,Z values from the comma-separated line
-            double x = 0.0, y = 0.0, z = 0.0;
-            try
+            if (!tryParseFlightPathLine(line, cords))
             {
-                size_t firstComma = line.find(',');
-                size_t secondComma = line.find(',', firstComma + 1);
-
-                if (firstComma == string::npos || secondComma == string::npos)
-                {
-                    logger.Log("[Client] Malformed line in flightpath.txt: " + line + " — skipping.");
-                    break;
-                }
-
-                x = stod(line.substr(0, firstComma));
-                y = stod(line.substr(firstComma + 1, secondComma - firstComma - 1));
-                z = stod(line.substr(secondComma + 1));
-            }
-            catch (const exception& e)
-            {
-                logger.Log("[Client] Failed to parse coordinate line: " + line + " | Error: " + e.what());
+                logger.Log("[Client] Malformed line in flightpath.txt: " + line + " - skipping.");
                 break;
             }
 
-            // Set the parsed values into the Coordinate object
-            cords.set_X(x);
-            cords.set_Y(y);
-            cords.set_Z(z);
+            double x = cords.get_X();
+            double y = cords.get_Y();
+            double z = cords.get_Z();
 
             // Log the coordinate being sent
             string message = "[Client] Sending FLIGHT_ACTIVE Packet.";
@@ -201,10 +183,11 @@ int main(int argc, char* argv[])
             logger.LogReceive(string(1, rxPacket.getInstruction()));
 
             // Check the server's response and react
-            if (rxPacket.getInstruction() == COLLISION_ALERT)
+            ClientState nextState = getNextClientState(clientState, rxPacket.getInstruction());
+            if (nextState != clientState)
             {
                 logger.Log("[Client] COLLISION_ALERT received from server. Changing State to DivertCourse.\n");
-                clientState = ClientState::DivertCourse; // Switch states to DivertCourse to receive collision aversion instructions
+                clientState = nextState; // Switch states to DivertCourse to receive collision aversion instructions
             }
             else if (rxPacket.getInstruction() == ACK)
                 logger.Log("[Client] ACK received from server.\n");
@@ -220,15 +203,16 @@ int main(int argc, char* argv[])
             // Server Responds with ACK packet and starts the large data transfer loop until finished and switches to Flying state
             string message = "[Client] Sending FLIGHT_ALERT_RESPONSE Packet.";
             logger.Log(message);
-            char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
-            txPacket = Packet();
-            txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
-            if (!sendPacket(ClientSocket, txPacket))
+            if (!sendFlightAlertResponsePacket(ClientSocket))
             {
                 logger.Log("[Client] Failed to send FLIGHT_ALERT_RESPONSE packet.\n\n");
                 flightActive = false;   // Exit even if send failed
                 break;
             }
+
+            char responseInstruction = static_cast<char>(FLIGHT_ALERT_RESPONSE);
+            txPacket = Packet();
+            txPacket.SetData(&responseInstruction, sizeof(responseInstruction));
 
             // Log data being sent to server
             logger.LogSend(string(1, txPacket.getInstruction()));
@@ -238,7 +222,7 @@ int main(int argc, char* argv[])
             if (!recvPacket(ClientSocket, rxPacket))
             {
                 logger.Log("[Client] No ACK received.\n\n");
-                flightActive = false;   //Exit — server may have closed
+                flightActive = false;   //Exit - server may have closed
                 break;
             }
 
@@ -252,22 +236,14 @@ int main(int argc, char* argv[])
 
                 // Read image file into a byte buffer
                 // check if image exists before using
-                ifstream imageFile("Images/Live_Feed1.png", std::ios::binary | std::ios::ate);
-                if (!imageFile.is_open()) {
+                vector<char> imageBytes;
+                if (!loadBinaryFile("Images/Live_Feed1.png", imageBytes)) {
                     logger.Log("[Client] Failed to open image file.\n");
                     break;
                 }
-                int fileSize = imageFile.tellg();
-                imageFile.seekg(0);
-
-                char* imageBuffer = new char[fileSize];
-                imageFile.read(imageBuffer, fileSize);
-                imageFile.close();
 
                 // Start Large Data Transfer Process
-                sendLargeData(ClientSocket, imageBuffer, fileSize);
-
-                delete[] imageBuffer;
+                sendLargeData(ClientSocket, imageBytes.data(), static_cast<int>(imageBytes.size()));
 
 
 
@@ -290,3 +266,4 @@ int main(int argc, char* argv[])
     WSACleanup();
     return 1;
 }
+
