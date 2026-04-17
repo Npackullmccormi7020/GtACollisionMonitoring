@@ -25,9 +25,6 @@ public:
 
 	Packet() : Data(nullptr), TxBuffer(nullptr) { memset(&Head, 0, sizeof(Head));  Head.SourceID = 2; };		//Default Constructor - Safe State
 
-
-    // ************* TEMPORARY FUNCTIONS *************
-    // Replace these functions with the proper versions, this was just used to do multithreading testing
     Packet(char* src) {
         Data = nullptr;
         TxBuffer = nullptr;
